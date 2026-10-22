@@ -1,0 +1,13 @@
+node_modules/
+# Private Qloo response cache and probe reports: NEVER commit (hackathon rule: no Qloo data in a public repo)
+.cache/
+*.sqlite
+*.sqlite3
+*.db
+# Secrets
+.env
+.env.*
+!.env.example
+# OS / editors
+.DS_Store
+*.log

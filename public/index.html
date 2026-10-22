@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#F2F2F7">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000">
+<title>Tourbook</title>
+<meta name="description" content="Tourbook routes a tour by taste instead of population. An agent reads Qloo's taste graph to find the cities where an act's fans over-index, then preps every date.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23000'/%3E%3Cpath d='M8 22c3-8 6-1 9-7s4-5 7-6' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round'/%3E%3Ccircle cx='24' cy='9' r='2.6' fill='%23FF8D28'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/design-system/tokens.css">
+<link rel="stylesheet" href="/design-system/components.css">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body class="ui-root">
+<a class="skip" href="#content">Skip to content</a>
+
+<!-- Symbols: SF-style strokes, 1.7 px -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-sidebar" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="3.5"/><path d="M9.5 4.5v15"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3.1-3.1a4 4 0 0 0-5.7-5.7l-1.3 1.3"/><path d="M14 10a4 4 0 0 0-5.7 0l-3.1 3.1a4 4 0 0 0 5.7 5.7l1.3-1.3"/></symbol>
+  <symbol id="i-print" viewBox="0 0 24 24"><path d="M7 9V4h10v5"/><rect x="3.5" y="9" width="17" height="8" rx="2.5"/><path d="M7 14h10v6H7z"/></symbol>
+  <symbol id="i-speaker" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4.2 4.2 0 0 1 0 6M18 6.5a8 8 0 0 1 0 11"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="2"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z"/></symbol>
+  <symbol id="i-map" viewBox="0 0 24 24"><path d="M9 4.5 3.5 6.5v13L9 17.5l6 2 5.5-2v-13L15 6.5z"/><path d="M9 4.5v13M15 6.5v13"/></symbol>
+  <symbol id="i-agent" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="3.5"/><path d="m7.5 10 2.5 2-2.5 2M12.5 15h4"/></symbol>
+  <symbol id="i-room" viewBox="0 0 24 24"><path d="M4 20V9.5L12 4l8 5.5V20"/><path d="M9.5 20v-5.5h5V20M3 20h18"/></symbol>
+  <symbol id="i-note" viewBox="0 0 24 24"><path d="M9 17.5V6l10-2v11.5"/><circle cx="6.8" cy="17.5" r="2.3"/><circle cx="16.8" cy="15.5" r="2.3"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></symbol>
+  <symbol id="i-wave" viewBox="0 0 24 24"><path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 10.5v3"/></symbol>
+  <symbol id="i-chev-r" viewBox="0 0 24 24"><path d="m9.5 6 6 6-6 6"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-retry" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4v4h-4"/></symbol>
+  <symbol id="i-fit" viewBox="0 0 24 24"><path d="M4 9V5.5A1.5 1.5 0 0 1 5.5 4H9M15 4h3.5A1.5 1.5 0 0 1 20 5.5V9M20 15v3.5a1.5 1.5 0 0 1-1.5 1.5H15M9 20H5.5A1.5 1.5 0 0 1 4 18.5V15"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 4.6a2 2 0 0 1 3.4 0l7.1 12.6a2 2 0 0 1-1.7 3H4.9a2 2 0 0 1-1.7-3z"/><path d="M12 9.5v4.2M12 16.8v.2"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 7.8v.3"/></symbol>
+</svg>
+
+<div class="ui-app" id="app">
+
+  <!-- ===================== Sidebar (glass) ===================== -->
+  <aside class="ui-sidebar ui-glass" id="sidebar" aria-label="Navigation">
+    <div class="ui-sidebar__header">
+      <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M8 22c3-8 6-1 9-7s4-5 7-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><circle cx="24" cy="9" r="2.6" fill="#FF8D28"/></svg></span>
+      <div style="min-width:0;flex:1">
+        <div class="ui-headline">Tourbook</div>
+        <div class="ui-footnote ui-secondary">Taste-routed tours · 34 US metros</div>
+      </div>
+      <button class="ui-icon-button only-overlay" type="button" data-sidebar-close aria-label="Close the sidebar"><svg class="ui-icon"><use href="#i-x"/></svg></button>
+    </div>
+    <nav class="ui-sidebar__scroll" aria-label="Views">
+      <button class="ui-nav-item" type="button" data-nav="plan" aria-current="page"><svg class="ui-icon"><use href="#i-map"/></svg>Tour plan</button>
+      <button class="ui-nav-item" type="button" data-nav="agent"><svg class="ui-icon"><use href="#i-agent"/></svg>Agent<span class="ui-nav-item__count" data-agent-count></span></button>
+      <button class="ui-nav-item" type="button" data-nav="rooms"><svg class="ui-icon"><use href="#i-room"/></svg>Room mode</button>
+
+      <div class="ui-sidebar__heading">Demo acts</div>
+      <div id="sideDemos" class="side-demos"></div>
+    </nav>
+    <div class="ui-sidebar__footer">
+      <div class="source" id="sourceNote">
+        <span class="ui-status ui-status--info ui-subhead" id="sourceLabel">Connecting…</span>
+        <p class="ui-footnote ui-secondary" id="sourceDetail"></p>
+      </div>
+    </div>
+  </aside>
+  <div class="sidebar-scrim" data-sidebar-close hidden></div>
+
+  <div class="ui-main">
+    <!-- ===================== Toolbar ===================== -->
+    <header class="ui-toolbar" id="toolbar">
+      <button class="ui-icon-button ui-glass tb-sidebar-toggle hide-compact" type="button" data-sidebar-toggle aria-label="Show or hide the sidebar"><svg class="ui-icon"><use href="#i-sidebar"/></svg></button>
+      <div class="ui-toolbar__title tb-title">
+        <h1 id="tbTitle">Tour plan</h1>
+        <p class="ui-footnote ui-secondary" id="tbSub">Route a tour by taste, not population</p>
+      </div>
+      <nav class="ui-tabs-top ui-glass" aria-label="Views">
+        <a href="#plan" data-nav="plan" aria-current="page">Plan</a><a href="#agent" data-nav="agent">Agent</a><a href="#rooms" data-nav="rooms">Rooms</a>
+      </nav>
+      <div class="ui-toolbar__group ui-glass" id="planTools" hidden>
+        <button class="ui-icon-button" type="button" id="voiceBtn" aria-label="Play the voice briefing" title="Voice briefing" hidden><svg class="ui-icon"><use href="#i-speaker"/></svg></button>
+        <button class="ui-icon-button" type="button" id="shareBtn" aria-label="Copy a link to this plan" title="Copy link"><svg class="ui-icon"><use href="#i-link"/></svg></button>
+        <button class="ui-icon-button" type="button" id="printBtn" aria-label="Save the plan as PDF" title="Save as PDF"><svg class="ui-icon"><use href="#i-print"/></svg></button>
+      </div>
+      <button class="ui-button hide-compact" type="button" id="newPlanBtn" data-new-plan><svg class="ui-icon"><use href="#i-plus"/></svg>New plan</button>
+    </header>
+
+    <main id="content" tabindex="-1">
+
+      <!-- ===================== PLAN VIEW ===================== -->
+      <section class="view page" id="view-plan" data-view="plan" data-state="empty" aria-labelledby="tbTitle">
+
+        <div class="lead">
+          <p class="summary" id="summary" aria-live="polite"><strong>Population lies, taste doesn't.</strong> A mid-size act usually tours New York, Los Angeles and Chicago. Tourbook's agent asks Qloo where the act's fans actually over-index, then preps every date with its evidence.</p>
+
+          <div class="lead-actions" id="leadActions">
+            <button class="ui-button ui-button--prominent ui-button--lg" type="button" id="heroDemo" data-run-demo="0"><svg class="ui-icon is-filled"><use href="#i-play"/></svg><span>Run the demo</span></button>
+            <button class="ui-button ui-button--lg" type="button" data-new-plan>Plan your own act</button>
+            <p class="ui-footnote ui-secondary lead-note">About fifteen seconds, no sign-up. Every Qloo call shows up as it happens.</p>
+          </div>
+
+          <div class="live" id="live" hidden>
+            <ol class="steps" id="steps" aria-label="Agent progress"></ol>
+            <p class="step-label" id="stepLabel" aria-hidden="true"></p>
+            <ul class="live-log" id="liveLog" aria-label="Latest agent actions"></ul>
+          </div>
+
+          <div class="ui-banner ui-banner--critical" id="planError" role="alert" hidden>
+            <svg class="ui-icon"><use href="#i-alert"/></svg>
+            <div style="flex:1"><strong id="planErrorTitle">The run stopped</strong><p id="planErrorText"></p></div>
+            <button class="ui-button ui-button--sm" type="button" id="retryBtn"><svg class="ui-icon"><use href="#i-retry"/></svg>Try again</button>
+          </div>
+
+          <div class="ui-stats" id="stats" role="list" hidden></div>
+        </div>
+
+        <!-- Map: full bleed, runs under the glass sidebar -->
+        <div class="map" id="mapwrap">
+          <div id="map" role="img" aria-label="Map of 34 US metros"></div>
+          <fieldset class="ui-segmented ui-glass map-switch" id="planToggle" aria-label="Plan source" hidden>
+            <label><input type="radio" name="plan" value="qloo" checked>With Qloo</label>
+            <label><input type="radio" name="plan" value="llm">Without Qloo</label>
+          </fieldset>
+          <div class="map-controls">
+            <div class="map-zoom ui-glass">
+              <button class="ui-icon-button" type="button" id="zoomIn" aria-label="Zoom in"><svg class="ui-icon"><use href="#i-plus"/></svg></button>
+              <button class="ui-icon-button" type="button" id="zoomOut" aria-label="Zoom out"><svg class="ui-icon"><use href="#i-minus"/></svg></button>
+            </div>
+            <button class="ui-icon-button ui-glass" type="button" id="zoomFit" aria-label="Fit the whole tour"><svg class="ui-icon"><use href="#i-fit"/></svg></button>
+          </div>
+          <div class="map-legend ui-glass" id="legend"></div>
+          <p class="map-credit">© OpenStreetMap contributors · OpenMapTiles · OpenFreeMap</p>
+        </div>
+
+        <!-- Empty state -->
+        <div class="when-empty">
+          <div class="grid-2 block">
+            <div class="ui-list-section hide-wide">
+              <div class="ui-list__header"><strong>Demo acts</strong><span id="demoActsNote">One tap each</span></div>
+              <ul class="ui-list" id="bodyDemos"></ul>
+            </div>
+            <div class="ui-list-section">
+              <div class="ui-list__header"><strong>What the agent does</strong></div>
+              <ul class="ui-list how">
+                <li><div class="ui-row"><span class="how-n">1</span><div class="ui-row__body"><span class="ui-row__title">Resolves the act and up to three sound-alikes</span><span class="ui-row__subtitle"><code>/search</code> finds each act's Qloo ID. Sound-alikes stand in for acts too small for the graph.</span></div></div></li>
+                <li><div class="ui-row"><span class="how-n">2</span><div class="ui-row__body"><span class="ui-row__title">Ranks 34 metros by Hidden Market Score</span><span class="ui-row__subtitle">One national <code>urn:heatmap</code> call puts every city on the same scale, then taste rank meets population rank.</span></div></div></li>
+                <li><div class="ui-row"><span class="how-n">3</span><div class="ui-row__body"><span class="ui-row__title">Preps the first three dates</span><span class="ui-row__subtitle">Room, opener, sponsor, after-show spot and crowd brief, each citing the Qloo request behind it.</span></div></div></li>
+              </ul>
+              <p class="ui-list__footer">It also builds the plan a model without Qloo would make, so you can compare both on the map.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Results -->
+        <div class="when-ready">
+          <div class="grid-main block">
+            <div class="ui-list-section">
+              <div class="ui-list__header"><strong>First three dates</strong><span>Open one for its dossier</span></div>
+              <ul class="ui-list dates" id="dates"></ul>
+              <p class="ui-list__footer" id="datesFoot"></p>
+            </div>
+            <div class="ui-list-section">
+              <div class="ui-list__header"><strong>With and without Qloo</strong><button class="ui-button ui-button--plain ui-button--sm" type="button" id="compareFlip">Show on map</button></div>
+              <div class="compare" id="compare"></div>
+              <p class="ui-list__footer" id="compareFoot"></p>
+            </div>
+          </div>
+
+          <section class="block" aria-labelledby="marketsTitle">
+            <header class="block-head">
+              <h2 class="ui-title2" id="marketsTitle">All 34 markets</h2>
+              <p class="ui-callout ui-secondary" id="marketsSub"></p>
+            </header>
+            <div class="ui-table-wrap">
+              <table class="ui-table ui-table--stack markets" id="marketsTable"></table>
+              <div class="ui-table__footer"><span id="marketsCount"></span><button class="ui-button ui-button--plain ui-button--sm" type="button" id="marketsMore">Show all 34</button></div>
+            </div>
+            <p class="fine">Hidden Market Score = 60 % taste strength + 40 % gap between taste rank and population rank. A hidden market beats its population rank by five places or more, with strong taste.</p>
+          </section>
+
+          <div class="grid-2 block">
+            <section class="panel" aria-labelledby="audTitle">
+              <div class="panel-head"><h3 class="ui-headline" id="audTitle">Who the audience is</h3><p class="ui-footnote ui-secondary">Relative affinity by segment, from <code>urn:demographics</code></p></div>
+              <div id="audience" class="bars"></div>
+            </section>
+            <section class="panel" aria-labelledby="momTitle">
+              <div class="panel-head"><h3 class="ui-headline" id="momTitle">Momentum</h3><p class="ui-footnote ui-secondary" id="momentumSub">Weekly popularity percentile, from <code>/v2/trending</code></p></div>
+              <div id="momentum"></div>
+            </section>
+          </div>
+
+          <p class="plan-foot ui-footnote ui-secondary" id="planFoot"></p>
+        </div>
+      </section>
+
+      <!-- ===================== AGENT VIEW ===================== -->
+      <section class="view page" id="view-agent" data-view="agent" hidden aria-labelledby="tbTitle">
+        <div id="agentEmpty">
+          <div class="ui-empty">
+            <span class="ui-empty__icon"><svg class="ui-icon"><use href="#i-agent"/></svg></span>
+            <h3>No run yet</h3>
+            <p>Start a plan and every tool call and Qloo request appears here, with its exact parameters.</p>
+            <button class="ui-button ui-button--prominent" type="button" data-run-demo="0" data-demo-label>Run the demo</button>
+          </div>
+        </div>
+        <div id="agentBody" hidden>
+          <p class="summary" id="agentSummary"></p>
+          <div class="ui-stats" id="agentStats" role="list"></div>
+          <div class="grid-main block">
+            <div class="ui-list-section">
+              <div class="ui-list__header"><strong>Run log</strong><span id="logMeta"></span></div>
+              <ol class="runlog" id="runlog"></ol>
+            </div>
+            <div>
+              <div class="ui-list-section">
+                <div class="ui-list__header"><strong>How this plan used Qloo</strong></div>
+                <div class="ui-table-wrap"><table class="ui-table usage" id="usage"></table></div>
+                <p class="ui-list__footer" id="usageFoot"></p>
+              </div>
+              <div class="ui-list-section">
+                <div class="ui-list__header"><strong>Guardrails</strong></div>
+                <ul class="ui-list" id="guards"></ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== ROOM MODE ===================== -->
+      <section class="view page" id="view-rooms" data-view="rooms" hidden aria-labelledby="tbTitle">
+        <p class="summary"><strong>Who should play your room?</strong> Type your neighbourhood. Tourbook reads the same taste graph from the venue's side: emerging acts the people around you already love, below a popularity you can afford.</p>
+        <form class="room-form" id="venueForm" autocomplete="off" novalidate>
+          <div class="ui-field room-hood">
+            <label class="ui-field__label" for="vHood">Neighbourhood</label>
+            <input class="ui-input" id="vHood" name="neighborhood" placeholder="Lower East Side" required maxlength="120" enterkeyhint="search" autocapitalize="words" aria-describedby="vHoodErr">
+            <p class="ui-field__error" id="vHoodErr" hidden>Type a neighbourhood, or pick one below.</p>
+          </div>
+          <div class="ui-field room-pop">
+            <label class="ui-field__label" for="vPop"><span>Popularity cap <b class="ui-num" id="vPopVal">0.70</b></span><span id="vPopHelp">Lower is more emerging</span></label>
+            <input class="ui-slider" id="vPop" type="range" min="0.2" max="1" step="0.05" value="0.7" aria-describedby="vPopHelp">
+          </div>
+          <button class="ui-button ui-button--prominent ui-button--lg" type="submit" id="venueBtn">Find acts</button>
+        </form>
+        <div class="hood-chips" id="hoodChips" role="group" aria-label="Suggested neighbourhoods"></div>
+        <div id="venueResults" class="block" aria-live="polite">
+          <div class="ui-empty">
+            <span class="ui-empty__icon"><svg class="ui-icon"><use href="#i-room"/></svg></span>
+            <h3>Pick a neighbourhood</h3>
+            <p>You get twelve acts ranked by local taste fit, with their popularity, so you can book them before they blow up.</p>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- ===================== iPhone tab bar ===================== -->
+  <nav class="ui-tabbar" data-minimize aria-label="Views">
+    <div class="ui-tabbar__tabs ui-glass">
+      <a class="ui-tabbar__item" href="#plan" data-nav="plan" aria-current="page"><svg class="ui-icon"><use href="#i-map"/></svg>Plan</a>
+      <a class="ui-tabbar__item" href="#agent" data-nav="agent"><svg class="ui-icon"><use href="#i-agent"/></svg>Agent</a>
+      <a class="ui-tabbar__item" href="#rooms" data-nav="rooms"><svg class="ui-icon"><use href="#i-room"/></svg>Rooms</a>
+    </div>
+    <button class="ui-tabbar__search ui-glass" type="button" data-new-plan aria-label="New plan"><svg class="ui-icon"><use href="#i-plus"/></svg></button>
+  </nav>
+</div>
+
+<!-- ===================== Sheet: new plan ===================== -->
+<dialog class="ui-sheet" id="sheet-plan" aria-labelledby="sheetPlanTitle">
+  <div class="ui-sheet__grabber"></div>
+  <form id="planForm" autocomplete="off" novalidate>
+    <div class="ui-sheet__bar">
+      <button class="ui-button ui-button--plain" type="button" data-sheet-close>Cancel</button>
+      <h2 class="ui-sheet__title" id="sheetPlanTitle">New plan</h2>
+      <button class="ui-button ui-button--prominent ui-button--sm" type="submit" id="runBtn">Build</button>
+    </div>
+    <div class="ui-sheet__body form-body">
+      <div class="ui-field">
+        <label class="ui-field__label" for="fArtist">Headliner</label>
+        <input class="ui-input" id="fArtist" name="artist" placeholder="Artist, comedian or podcast" required maxlength="120" enterkeyhint="go" autocapitalize="words" aria-describedby="fArtistErr">
+        <p class="ui-field__error" id="fArtistErr" hidden>Type a headliner, or run one of the demo acts.</p>
+      </div>
+      <fieldset class="ui-segmented ui-segmented--lg act-type" id="fType" aria-label="Act type">
+        <label><input type="radio" name="type" value="artist" checked>Music</label>
+        <label><input type="radio" name="type" value="person">Comedy</label>
+        <label><input type="radio" name="type" value="podcast">Podcast</label>
+      </fieldset>
+      <div class="ui-field">
+        <span class="ui-field__label" id="proxyLabel">Sounds like (optional)</span>
+        <div class="proxies" role="group" aria-labelledby="proxyLabel">
+          <input class="ui-input" name="p1" placeholder="Similar act" aria-label="Similar act 1" maxlength="120" autocapitalize="words">
+          <input class="ui-input" name="p2" placeholder="Another one" aria-label="Similar act 2" maxlength="120" autocapitalize="words">
+          <input class="ui-input" name="p3" placeholder="And a third" aria-label="Similar act 3" maxlength="120" autocapitalize="words" enterkeyhint="go">
+        </div>
+        <p class="ui-field__hint">Too small for the taste graph? Three sound-alikes stand in for your audience.</p>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<!-- ===================== Sheet: city dossier ===================== -->
+<dialog class="ui-sheet sheet-wide" id="sheet-dossier" aria-labelledby="dossierTitle">
+  <div class="ui-sheet__grabber"></div>
+  <div class="ui-sheet__bar">
+    <button class="ui-button ui-button--plain" type="button" data-sheet-close>Close</button>
+    <h2 class="ui-sheet__title" id="dossierTitle">Dossier</h2>
+    <button class="ui-button ui-button--plain" type="button" id="dossierNext">Next<svg class="ui-icon"><use href="#i-chev-r"/></svg></button>
+  </div>
+  <div class="ui-sheet__body" id="dossierBody"></div>
+</dialog>
+
+<!-- ===================== Voice briefing: a presence, not a call ===================== -->
+<div class="voice-dock ui-voice" id="voiceDock" data-state="idle" hidden>
+  <div class="ui-voice__capsule ui-glass">
+    <button class="ui-icon-button" type="button" id="voiceStop" aria-label="Stop the briefing"><svg class="ui-icon is-filled"><use href="#i-stop"/></svg></button>
+    <div class="ui-voice__wave" id="voiceWave" aria-hidden="true"></div>
+    <p class="voice-line" id="voiceLine" aria-live="polite"></p>
+  </div>
+</div>
+
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script type="module" src="/app.js"></script>
+</body>
+</html>
