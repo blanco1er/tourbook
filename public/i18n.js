@@ -459,7 +459,7 @@
     }
   }
 
-  // Language switch (EN / FR): saves the choice, then reloads the same URL with its lang param replaced.
+  // Language switch (EN / FR): saves the choice, then reloads the same view in the other language (no auto-run).
   function bindSwitch() {
     for (const b of document.querySelectorAll('[data-lang]')) {
       b.setAttribute('aria-pressed', String(b.dataset.lang === LANG));
@@ -469,6 +469,8 @@
         try { localStorage.setItem('lang', next); } catch { /* the URL param below still carries it */ }
         const url = new URL(location.href);
         url.searchParams.set('lang', next);
+        // Changing language must never start a plan: drop the params that auto-run one on load.
+        for (const k of ['demo', 'artist', 'proxies', 'type', 'rid']) url.searchParams.delete(k);
         location.replace(url.toString());
       });
     }
