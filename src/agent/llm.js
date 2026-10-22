@@ -16,16 +16,24 @@ export class OpenAICompatLLM {
     this.kind = 'openai'; this.baseUrl = baseUrl; this.apiKey = apiKey; this.model = model;
   }
   async chat({ messages, tools = [], json = false }) {
-    const body = { model: this.model, messages, temperature: 0.2 };
-    if (tools.length) { body.tools = tools; body.tool_choice = 'auto'; }
+    // OpenAI itself takes the full schema; other OpenAI-compatible hosts (Gemini) reject `strict`,
+    // `additionalProperties` and `pattern` with a 400, and null assistant content.
+    const portable = !/api\.openai\.com/.test(this.baseUrl);
+    const body = { model: this.model, messages: portable ? messages.map((m) => (m.content === null ? { ...m, content: '' } : m)) : messages, temperature: 0.2 };
+    if (tools.length) { body.tools = portable ? tools.map(portableTool) : tools; body.tool_choice = 'auto'; }
     if (json) body.response_format = { type: 'json_object' };
     const res = await fetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.apiKey}` },
       body: JSON.stringify(body),
     });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(`LLM HTTP ${res.status}: ${data?.error?.message || 'error'}`);
+    const text = await res.text();
+    const data = safeJson(text);
+    if (!res.ok) {
+      const err = Array.isArray(data) ? data[0]?.error : data?.error;
+      console.warn(`[llm] HTTP ${res.status}: ${text.slice(0, 600)}`);
+      throw new Error(`LLM HTTP ${res.status}: ${err?.message || 'error'}`);
+    }
     const msg = data?.choices?.[0]?.message || {};
     return {
       content: msg.content ?? null,
@@ -36,6 +44,15 @@ export class OpenAICompatLLM {
 }
 
 const safeJson = (s) => { try { return typeof s === 'string' ? JSON.parse(s) : s || {}; } catch { return {}; } };
+
+function portableSchema(s) {
+  if (!s || typeof s !== 'object') return s;
+  if (Array.isArray(s)) return s.map(portableSchema);
+  const out = {};
+  for (const [k, v] of Object.entries(s)) if (!['strict', 'additionalProperties', 'pattern'].includes(k)) out[k] = portableSchema(v);
+  return out;
+}
+const portableTool = (t) => ({ type: 'function', function: portableSchema(t.function) });
 
 /**
  * Scripted planner. Reads the conversation (tool calls already made + their results) and decides the
@@ -74,7 +91,7 @@ export class MockLLM {
     for (const m of top.slice(0, 3)) {
       const city = m.id;
       if (!done('local_picks', (a) => a.city_id === city && a.kind === 'venue')) return { name: 'local_picks', args: { entity_ids: ids, city_id: city, kind: 'venue' }, thought: `${m.name}: finding the room whose crowd matches the fan base.` };
-      if (!done('find_openers', (a) => a.city_id === city)) return { name: 'find_openers', args: { entity_ids: ids, city_id: city, popularity_max: 0.85 }, thought: `${m.name}: looking for an opener that brings new fans, not the same ones.` };
+      if (!done('find_openers', (a) => a.city_id === city)) return { name: 'find_openers', args: { entity_ids: ids, city_id: city, popularity_max: 0.85 }, thought: `${m.name}: looking for a smaller act whose fans share this taste.` };
       if (!done('sponsor_fit', (a) => a.city_id === city)) return { name: 'sponsor_fit', args: { entity_ids: ids, city_id: city }, thought: `${m.name}: matching brands this crowd already loves.` };
       if (!done('local_picks', (a) => a.city_id === city && a.kind === 'after_party')) return { name: 'local_picks', args: { entity_ids: ids, city_id: city, kind: 'after_party' }, thought: `${m.name}: picking an affordable after-show spot.` };
       if (!done('local_picks', (a) => a.city_id === city && a.kind === 'crowd_brief')) return { name: 'local_picks', args: { entity_ids: ids, city_id: city, kind: 'crowd_brief' }, thought: `${m.name}: writing the crowd brief.` };
@@ -84,11 +101,17 @@ export class MockLLM {
   }
 
   #final(input, calls) {
-    const rank = calls.find((c) => c.name === 'rank_markets')?.result;
-    const hidden = (rank?.top || []).filter((m) => m.rankGap > 0).slice(0, 3).map((m) => m.name);
-    const base = calls.find((c) => c.name === 'llm_only_baseline')?.result;
-    const big = (base?.cities || []).slice(0, 3).map((c) => CITIES.find((x) => x.id === (c?.id ?? c))?.name).filter(Boolean);
-    return `${input.artist}'s fans over-index in ${hidden.join(', ') || 'secondary markets'}, cities a population-first plan (${big.join(', ')}) would skip. Each date below comes with a room, an opener that widens the audience, a sponsor fit and a crowd brief, all traceable to Qloo calls.`;
+    const top = calls.find((c) => c.name === 'rank_markets')?.result?.top || [];
+    const baseIds = (calls.find((c) => c.name === 'llm_only_baseline')?.result?.cities || []).map((c) => c?.id ?? c);
+    const nameOf = (id) => CITIES.find((x) => x.id === id)?.name;
+    // Only claim what the two plans actually disagree on.
+    const onlyQloo = top.filter((m) => !baseIds.includes(m.id)).slice(0, 3).map((m) => m.name);
+    const onlyBase = baseIds.filter((id) => !top.some((m) => m.id === id)).slice(0, 3).map(nameOf).filter(Boolean);
+    const lead = top[0] ? `${input.artist}'s strongest market is ${top[0].name} (Hidden Market Score ${top[0].hms}).` : `${input.artist}'s markets are ranked by taste.`;
+    const diff = onlyQloo.length && onlyBase.length
+      ? ` Taste data adds ${onlyQloo.join(', ')}; a plan without it would have picked ${onlyBase.join(', ')} instead.`
+      : onlyQloo.length ? ` Taste data adds ${onlyQloo.join(', ')}.` : '';
+    return `${lead}${diff} Each date below comes with a room, an opener, a sponsor fit and a crowd brief, all traceable to Qloo calls.`;
   }
 }
 
