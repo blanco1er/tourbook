@@ -78,26 +78,28 @@ export class MockLLM {
     const done = (name, pred = () => true) => calls.some((c) => c.name === name && pred(c.args));
     const names = [input.artist, ...(input.proxies || [])].filter(Boolean);
     const type = input.type || 'artist';
+    const fr = input.lang === 'fr'; // same calls, same facts: only the narration changes language
+    const say = (en, frText) => (fr ? frText : en);
     for (const n of names) if (!done('resolve_entity', (a) => a.name === n))
-      return { name: 'resolve_entity', args: { name: n, type }, thought: n === input.artist ? `Resolving "${n}" in Qloo's entity graph.` : `Resolving audience proxy "${n}".` };
+      return { name: 'resolve_entity', args: { name: n, type }, thought: n === input.artist ? say(`Resolving "${n}" in Qloo's entity graph.`, `Recherche de « ${n} » dans le graphe d’entités de Qloo.`) : say(`Resolving audience proxy "${n}".`, `Recherche de l’artiste similaire « ${n} ».`) };
     const ids = calls.filter((c) => c.name === 'resolve_entity' && c.result?.selected).map((c) => c.result.selected.id);
     if (!ids.length) return null;
-    if (!done('rank_markets')) return { name: 'rank_markets', args: { entity_ids: ids.slice(0, 4), top_n: 8 }, thought: 'Ranking 34 metros by taste affinity versus population.' };
-    if (!done('audience_profile')) return { name: 'audience_profile', args: { entity_id: ids[0] }, thought: 'Profiling who this audience is (aggregate segments only).' };
+    if (!done('rank_markets')) return { name: 'rank_markets', args: { entity_ids: ids.slice(0, 4), top_n: 8 }, thought: say('Ranking 34 metros by taste affinity versus population.', 'Classement des 34 métropoles selon l’affinité de goût face à la population.') };
+    if (!done('audience_profile')) return { name: 'audience_profile', args: { entity_id: ids[0] }, thought: say('Profiling who this audience is (aggregate segments only).', 'Profil de ce public (segments agrégés uniquement).') };
     if (!done('momentum')) {
       const end = new Date(); const start = new Date(end); start.setDate(end.getDate() - 182);
-      return { name: 'momentum', args: { entity_id: ids[0], start_date: iso(start), end_date: iso(end) }, thought: 'Checking six months of momentum to size the rooms.' };
+      return { name: 'momentum', args: { entity_id: ids[0], start_date: iso(start), end_date: iso(end) }, thought: say('Checking six months of momentum to size the rooms.', 'Analyse de six mois de tendance pour dimensionner les salles.') };
     }
     const top = calls.find((c) => c.name === 'rank_markets')?.result?.top || [];
     for (const m of top.slice(0, 3)) {
       const city = m.id;
-      if (!done('local_picks', (a) => a.city_id === city && a.kind === 'venue')) return { name: 'local_picks', args: { entity_ids: ids, city_id: city, kind: 'venue' }, thought: `${m.name}: finding the room whose crowd matches the fan base.` };
-      if (!done('find_openers', (a) => a.city_id === city)) return { name: 'find_openers', args: { entity_ids: ids, city_id: city, popularity_max: 0.85 }, thought: `${m.name}: looking for a smaller act whose fans share this taste.` };
-      if (!done('sponsor_fit', (a) => a.city_id === city)) return { name: 'sponsor_fit', args: { entity_ids: ids, city_id: city }, thought: `${m.name}: matching brands this crowd already loves.` };
-      if (!done('local_picks', (a) => a.city_id === city && a.kind === 'after_party')) return { name: 'local_picks', args: { entity_ids: ids, city_id: city, kind: 'after_party' }, thought: `${m.name}: picking an affordable after-show spot.` };
-      if (!done('local_picks', (a) => a.city_id === city && a.kind === 'crowd_brief')) return { name: 'local_picks', args: { entity_ids: ids, city_id: city, kind: 'crowd_brief' }, thought: `${m.name}: writing the crowd brief.` };
+      if (!done('local_picks', (a) => a.city_id === city && a.kind === 'venue')) return { name: 'local_picks', args: { entity_ids: ids, city_id: city, kind: 'venue' }, thought: say(`${m.name}: finding the room whose crowd matches the fan base.`, `${m.name} : recherche de la salle dont le public correspond aux fans.`) };
+      if (!done('find_openers', (a) => a.city_id === city)) return { name: 'find_openers', args: { entity_ids: ids, city_id: city, popularity_max: 0.85 }, thought: say(`${m.name}: looking for a smaller act whose fans share this taste.`, `${m.name} : recherche d’une première partie plus modeste dont les fans partagent ce goût.`) };
+      if (!done('sponsor_fit', (a) => a.city_id === city)) return { name: 'sponsor_fit', args: { entity_ids: ids, city_id: city }, thought: say(`${m.name}: matching brands this crowd already loves.`, `${m.name} : sélection des marques que ce public aime déjà.`) };
+      if (!done('local_picks', (a) => a.city_id === city && a.kind === 'after_party')) return { name: 'local_picks', args: { entity_ids: ids, city_id: city, kind: 'after_party' }, thought: say(`${m.name}: picking an affordable after-show spot.`, `${m.name} : choix d’un lieu d’after abordable.`) };
+      if (!done('local_picks', (a) => a.city_id === city && a.kind === 'crowd_brief')) return { name: 'local_picks', args: { entity_ids: ids, city_id: city, kind: 'crowd_brief' }, thought: say(`${m.name}: writing the crowd brief.`, `${m.name} : rédaction du brief public.`) };
     }
-    if (!done('llm_only_baseline')) return { name: 'llm_only_baseline', args: { artist_name: input.artist, n: 8 }, thought: 'Building the LLM-only plan to prove what Qloo changes.' };
+    if (!done('llm_only_baseline')) return { name: 'llm_only_baseline', args: { artist_name: input.artist, n: 8 }, thought: say('Building the LLM-only plan to prove what Qloo changes.', 'Construction du plan sans Qloo (modèle seul) pour montrer ce que Qloo change.') };
     return null;
   }
 
@@ -108,6 +110,13 @@ export class MockLLM {
     // Only claim what the two plans actually disagree on.
     const onlyQloo = top.filter((m) => !baseIds.includes(m.id)).slice(0, 3).map((m) => m.name);
     const onlyBase = baseIds.filter((id) => !top.some((m) => m.id === id)).slice(0, 3).map(nameOf).filter(Boolean);
+    if (input.lang === 'fr') {
+      const leadFr = top[0] ? `Le marché le plus fort de ${input.artist} est ${top[0].name} (Score de marché caché ${top[0].hms}).` : `Les marchés de ${input.artist} sont classés par goût.`;
+      const diffFr = onlyQloo.length && onlyBase.length
+        ? ` Les données de goût ajoutent ${onlyQloo.join(', ')} ; un plan sans elles aurait retenu ${onlyBase.join(', ')} à la place.`
+        : onlyQloo.length ? ` Les données de goût ajoutent ${onlyQloo.join(', ')}.` : '';
+      return `${leadFr}${diffFr} Chaque date ci-dessous comprend une salle, une première partie, des sponsors adaptés et un brief public, tous traçables jusqu’aux appels Qloo.`;
+    }
     const lead = top[0] ? `${input.artist}'s strongest market is ${top[0].name} (Hidden Market Score ${top[0].hms}).` : `${input.artist}'s markets are ranked by taste.`;
     const diff = onlyQloo.length && onlyBase.length
       ? ` Taste data adds ${onlyQloo.join(', ')}; a plan without it would have picked ${onlyBase.join(', ')} instead.`

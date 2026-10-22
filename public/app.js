@@ -2,13 +2,18 @@
 // Design: shared design system (design-system/*), Apple HIG patterns: sidebar + toolbar + sheets + toasts.
 import { UI, spring, toast, openSheet, closeSheet } from '/design-system/motion.js';
 
+// i18n.js (loaded first) provides LANG, LOCALE, t(), tData() and dec(); English stays the source text.
+const { LANG, LOCALE, t, tData, dec } = window;
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const pct = (x) => (Number.isFinite(x) ? `${Math.round(x * 100)}` : '–');
-const fmtPop = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : `${Math.round(n / 1e3)}k`);
-const signed = (n, d = 0) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${Math.abs(n).toFixed(d)}`;
-const plural = (n, w, p = `${w}s`) => `${n} ${n === 1 ? w : p}`;
+const fmtPop = (n) => (LANG === 'fr'
+  ? (n >= 1e6 ? `${dec((n / 1e6).toFixed(1))}\u00a0M` : `${Math.round(n / 1e3)}\u00a0k`)
+  : (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : `${Math.round(n / 1e3)}k`));
+const signed = (n, d = 0) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${dec(Math.abs(n).toFixed(d))}`;
+const plural = (n, w, p = `${w}s`) => `${n} ${(LANG === 'fr' ? n <= 1 : n === 1) ? t(w) : t(p)}`;
 const reduceMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 const isDark = () => document.documentElement.dataset.theme === 'dark' || (document.documentElement.dataset.theme !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
 const isWide = () => innerWidth >= 1000;
@@ -37,17 +42,17 @@ async function init() {
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     S.cfg = await r.json();
   } catch (e) {
-    showPlanError('Tourbook can’t reach its server', `${e.message}. Reload the page in a moment.`, false);
-    $('#sourceLabel').textContent = 'Offline';
+    showPlanError(t('Tourbook can’t reach its server'), t('{error}. Reload the page in a moment.', { error: e.message }), false);
+    $('#sourceLabel').textContent = t('Offline');
     return;
   }
   S.cities = Object.fromEntries(S.cfg.cities.map((c) => [c.id, c]));
   const live = S.cfg.qloo.mode === 'live';
-  $('#sourceLabel').textContent = live ? 'Live Qloo data' : 'Synthetic data';
+  $('#sourceLabel').textContent = live ? t('Live Qloo data') : t('Synthetic data');
   $('#sourceLabel').className = `ui-status ui-subhead ${live ? 'ui-status--ok' : 'ui-status--info'}`;
   $('#sourceDetail').textContent = live
-    ? `Qloo Insights API, aggregate taste only. Agent: ${S.cfg.llm.model || S.cfg.llm.provider}.`
-    : 'No Qloo key on this server yet. Acts, venues and numbers are invented; every request has Qloo’s real shape.';
+    ? t('Qloo Insights API, aggregate taste only. Agent: {model}.', { model: S.cfg.llm.model || S.cfg.llm.provider })
+    : t('No Qloo key on this server yet. Acts, venues and numbers are invented; every request has Qloo’s real shape.');
   renderDemos();
   $('#hoodChips').innerHTML = S.cfg.neighborhoods.map((n) => `<button class="ui-button ui-button--sm" type="button" data-hood="${esc(n)}" aria-pressed="false">${esc(n)}</button>`).join('');
   if ('speechSynthesis' in window) $('#voiceBtn').hidden = false;
@@ -55,17 +60,17 @@ async function init() {
   routeFromUrl();
 }
 
-const heroLabel = () => `Run the ${S.cfg?.demos?.[0]?.artist || ''} demo`.replace('  ', ' ');
+const heroLabel = () => t('Run the {name} demo', { name: S.cfg?.demos?.[0]?.artist || '' }).replace('  ', ' ').trim();
 
 function renderDemos() {
   const demos = S.cfg.demos;
-  const blurb = (d) => String(d.blurb || '').replace(/\s*\(synthetic\)\s*$/i, '');
-  $('#sideDemos').innerHTML = demos.map((d, i) => `<button class="ui-nav-item" type="button" data-run-demo="${i}">${icon(TYPE_ICON[d.type] || 'i-note')}<span>${esc(d.artist)}<small>${esc(TYPE_LABEL[d.type] || 'Music')} · ${esc(blurb(d))}</small></span></button>`).join('');
+  const blurb = (d) => t(String(d.blurb || '').replace(/\s*\(synthetic\)\s*$/i, ''));
+  $('#sideDemos').innerHTML = demos.map((d, i) => `<button class="ui-nav-item" type="button" data-run-demo="${i}">${icon(TYPE_ICON[d.type] || 'i-note')}<span>${esc(d.artist)}<small>${esc(t(TYPE_LABEL[d.type] || 'Music'))} · ${esc(blurb(d))}</small></span></button>`).join('');
   const label = heroLabel();
   $('#heroDemo span').textContent = label;
   $$('[data-demo-label]').forEach((b) => { b.textContent = label; });
-  $('#demoActsNote').textContent = S.cfg.qloo.mode === 'live' ? 'Real acts, live Qloo data' : 'Synthetic, one tap each';
-  $('#bodyDemos').innerHTML = demos.map((d, i) => `<li><button class="ui-row" type="button" data-run-demo="${i}"><span class="ui-row__icon">${icon(TYPE_ICON[d.type] || 'i-note')}</span><span class="ui-row__body"><span class="ui-row__title">${esc(d.artist)}</span><span class="ui-row__subtitle">${esc(TYPE_LABEL[d.type] || 'Music')} · ${esc(blurb(d))}</span></span>${icon('i-chev-r', 'ui-row__chevron')}</button></li>`).join('');
+  $('#demoActsNote').textContent = S.cfg.qloo.mode === 'live' ? t('Real acts, live Qloo data') : t('Synthetic, one tap each');
+  $('#bodyDemos').innerHTML = demos.map((d, i) => `<li><button class="ui-row" type="button" data-run-demo="${i}"><span class="ui-row__icon">${icon(TYPE_ICON[d.type] || 'i-note')}</span><span class="ui-row__body"><span class="ui-row__title">${esc(d.artist)}</span><span class="ui-row__subtitle">${esc(t(TYPE_LABEL[d.type] || 'Music'))} · ${esc(blurb(d))}</span></span>${icon('i-chev-r', 'ui-row__chevron')}</button></li>`).join('');
 }
 
 function bindUi() {
@@ -87,9 +92,9 @@ function bindUi() {
   $('#planToggle').addEventListener('change', (e) => setPlan(e.target.value));
   $('#compareFlip').addEventListener('click', () => { setPlan(S.plan === 'qloo' ? 'llm' : 'qloo'); $('#mapwrap').scrollIntoView({ behavior: reduceMotion() ? 'auto' : 'smooth', block: 'center' }); });
   $('#marketsMore').addEventListener('click', () => {
-    const t = $('#marketsTable'); const all = t.classList.toggle('is-all');
-    $('#marketsMore').textContent = all ? 'Show top 12' : `Show all ${S.book?.markets?.all?.length || 34}`;
-    $('#marketsCount').textContent = all ? `${S.book.markets.all.length} of ${S.book.markets.all.length}` : `12 of ${S.book.markets.all.length}`;
+    const tbl = $('#marketsTable'); const all = tbl.classList.toggle('is-all');
+    $('#marketsMore').textContent = all ? t('Show top 12') : t('Show all {n}', { n: S.book?.markets?.all?.length || 34 });
+    $('#marketsCount').textContent = all ? t('{a} of {b}', { a: S.book.markets.all.length, b: S.book.markets.all.length }) : t('{a} of {b}', { a: 12, b: S.book.markets.all.length });
   });
   $('#retryBtn').addEventListener('click', () => { if (S.input) run(S.input, { rid: S.retryRid || undefined }); else location.reload(); });
   $('#voiceBtn').addEventListener('click', toggleVoice);
@@ -101,7 +106,9 @@ function bindUi() {
   $('#zoomIn').addEventListener('click', () => S.map?.zoomIn());
   $('#zoomOut').addEventListener('click', () => S.map?.zoomOut());
   $('#zoomFit').addEventListener('click', () => fitTour(true));
-  $('#vPop').addEventListener('input', (e) => { $('#vPopVal').textContent = Number(e.target.value).toFixed(2); });
+  $('#mapExpand').addEventListener('click', () => setMapExpanded(!$('#mapwrap').classList.contains('is-expanded')));
+  addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('#mapwrap').classList.contains('is-expanded')) setMapExpanded(false); });
+  $('#vPop').addEventListener('input', (e) => { $('#vPopVal').textContent = dec(Number(e.target.value).toFixed(2)); });
   $('#venueForm').addEventListener('submit', (e) => { e.preventDefault(); venueSearch(); });
   $('#vHood').addEventListener('input', () => { $('#vHood').removeAttribute('aria-invalid'); $('#vHoodErr').hidden = true; });
   addEventListener('hashchange', () => { const v = location.hash.slice(1); if (VIEW_META[v] && v !== S.view) setView(v, { fromHash: true }); });
@@ -125,13 +132,13 @@ function setView(view, { fromHash = false } = {}) {
 }
 function updateToolbar() {
   const m = VIEW_META[S.view];
-  let title = m.title, sub = m.sub;
+  let title = t(m.title), sub = t(m.sub);
   const synthetic = S.cfg && S.cfg.qloo.mode !== 'live';
   if (S.view === 'plan' && (S.running || S.book)) {
     title = S.book?.artist?.selected?.name || S.input?.artist || title;
-    sub = S.running ? 'Agent working…' : `${TYPE_LABEL[S.input?.type] || 'Music'} · ${synthetic ? 'synthetic data · ' : ''}${S.book.meta.ms < 1000 ? 'replayed from cached Qloo answers' : `planned in ${(S.book.meta.ms / 1000).toFixed(1)} s`}`;
+    sub = S.running ? t('Agent working…') : `${t(TYPE_LABEL[S.input?.type] || 'Music')} · ${synthetic ? `${t('synthetic data')} · ` : ''}${S.book.meta.ms < 1000 ? t('replayed from cached Qloo answers') : t('planned in {s} s', { s: dec((S.book.meta.ms / 1000).toFixed(1)) })}`;
   }
-  if (S.view === 'agent' && (S.running || S.book)) sub = `${plural(S.tools, 'tool call')} · ${plural(S.calls.length, 'Qloo request')}${S.running ? ' · running' : ''}`;
+  if (S.view === 'agent' && (S.running || S.book)) sub = `${plural(S.tools, 'tool call')} · ${plural(S.calls.length, 'Qloo request')}${S.running ? ` · ${t('running')}` : ''}`;
   $('#tbTitle').textContent = title;
   $('#tbSub').textContent = sub;
   document.title = S.view === 'plan' && S.book ? `${title} · Tourbook` : 'Tourbook';
@@ -167,7 +174,7 @@ const slug = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(
 
 // ---------------- new plan sheet ----------------
 function openPlanSheet() {
-  if (S.running) { toast({ title: 'The agent is still working', detail: 'Wait for this plan to finish, then start another.' }); return; }
+  if (S.running) { toast({ title: t('The agent is still working'), detail: t('Wait for this plan to finish, then start another.') }); return; }
   openSheet('sheet-plan');
   setTimeout(() => $('#fArtist').focus({ preventScroll: true }), isWide() ? 60 : 380);
 }
@@ -195,13 +202,13 @@ function runDemo(i, opts = {}) {
 function setBusy(on, demoIndex) {
   $$('[data-run-demo], #runBtn').forEach((b) => { b.disabled = on; b.removeAttribute('aria-busy'); });
   if (on && demoIndex >= 0) $$(`[data-run-demo="${demoIndex}"]`).forEach((b) => b.setAttribute('aria-busy', 'true'));
-  $('#heroDemo span').textContent = on ? 'Agent working…' : heroLabel();
+  $('#heroDemo span').textContent = on ? t('Agent working…') : heroLabel();
 }
 
 function run(input, { rid, keepView = false, demoIndex } = {}) {
   // UB-31: one plan per click. The lock below stops a second click; the request id makes the server
   // join the run already in flight if a duplicate request still gets through.
-  if (S.running) { toast({ title: 'Already planning', detail: `${S.input?.artist} is still running. One plan at a time.` }); return; }
+  if (S.running) { toast({ title: t('Already planning'), detail: t('{artist} is still running. One plan at a time.', { artist: S.input?.artist }) }); return; }
   S.running = true;
   S.rid = rid || newRid(); S.retryRid = null;
   S.es?.close(); S.book = null; S.dossiers = {}; S.calls = []; S.tools = 0; S.trace = []; S.input = input; S.liveTop = null; S.curTool = null; S.plan = 'qloo';
@@ -213,7 +220,7 @@ function run(input, { rid, keepView = false, demoIndex } = {}) {
   view.dataset.state = 'running';
   $('#planError').hidden = true; $('#stats').hidden = true; $('#planToggle').hidden = true;
   $('#planToggle input[value="qloo"]').checked = true; $('#planToggle input[value="qloo"]').dispatchEvent(new Event('change', { bubbles: true }));
-  $('#summary').innerHTML = `<strong>Planning ${esc(input.artist)}.</strong> <span class="muted" id="thought">Connecting to the agent…</span>`;
+  $('#summary').innerHTML = `<strong>${t('Planning {artist}.', { artist: esc(input.artist) })}</strong> <span class="muted" id="thought">${t('Connecting to the agent…')}</span>`;
   $('#live').hidden = false; $('#liveLog').innerHTML = ''; $('#steps').innerHTML = '';
   resetAgentView();
   drawBaseMap();
@@ -225,15 +232,16 @@ function run(input, { rid, keepView = false, demoIndex } = {}) {
   try { sessionStorage.setItem(PENDING_KEY, JSON.stringify({ params: shareParams(input), rid: S.rid, t: Date.now() })); } catch {}
   history.replaceState(null, '', `?${shareParams(input)}${location.hash}`);
   const qs = new URLSearchParams({ artist: input.artist, proxies: input.proxies.join(','), type: input.type, rid: S.rid });
+  if (LANG === 'fr') qs.set('lang', 'fr'); // the agent narrates and summarises in French; tools and Qloo calls are unchanged
   const es = new EventSource(`/api/plan/stream?${qs}`);
   S.es = es;
   let gotEvent = false;
   const on = (type, fn) => es.addEventListener(type, (e) => { gotEvent = true; if (S.es !== es) return; const d = JSON.parse(e.data); if (type !== 'done') S.trace.push([type, d]); fn(d); });
   on('plan', (d) => {
-    $('#steps').innerHTML = d.steps.map((s) => `<li data-step="${esc(s)}">${esc(s)}</li>`).join('');
+    $('#steps').innerHTML = d.steps.map((s) => `<li data-step="${esc(s)}">${esc(t(s))}</li>`).join('');
     setStep('Resolve');
   });
-  on('joined', () => liveLine('thought', 'Attached to the run already in progress. No second plan was started.'));
+  on('joined', () => liveLine('thought', t('Attached to the run already in progress. No second plan was started.')));
   on('thought', (d) => { const t = $('#thought'); if (t) t.textContent = d.text; liveLine('thought', d.text); agentLine({ kind: 'thought', text: d.text }); });
   on('tool', (d) => {
     if (d.status === 'start') {
@@ -262,14 +270,14 @@ function run(input, { rid, keepView = false, demoIndex } = {}) {
     setBusy(false); render();
     history.replaceState(null, '', `?${shareParams()}${location.hash}`);
     clearPending(); saveSession();
-    toast({ title: `${book.artist?.selected?.name || input.artist} is planned`, detail: `${plural(book.meta.calls, 'Qloo request')} in ${(book.meta.ms / 1000).toFixed(1)} s`, tone: 'ok' });
+    toast({ title: t('{name} is planned', { name: book.artist?.selected?.name || input.artist }), detail: t('{requests} in {s} s', { requests: plural(book.meta.calls, 'Qloo request'), s: dec((book.meta.ms / 1000).toFixed(1)) }), tone: 'ok' });
   });
-  on('fail', (d) => { es.close(); failRun(d.code === 'daily_cap' ? 'Daily limit reached' : 'The agent stopped', d.error || 'Unknown error.'); });
+  on('fail', (d) => { es.close(); failRun(d.code === 'daily_cap' ? t('Daily limit reached') : t('The agent stopped'), t(d.error || 'Unknown error.')); });
   es.onerror = () => {
     if (S.es !== es || !S.running) return;
     es.close();
     S.retryRid = gotEvent ? S.rid : null; // reconnect to the same run: the server replays it, it never starts a second one
-    failRun(gotEvent ? 'The connection dropped' : 'The agent could not start', gotEvent ? 'The plan keeps running on the server. Try again to pick it up where it is.' : 'The server may be restarting. Try again in a moment.', { keepPending: true });
+    failRun(gotEvent ? t('The connection dropped') : t('The agent could not start'), gotEvent ? t('The plan keeps running on the server. Try again to pick it up where it is.') : t('The server may be restarting. Try again in a moment.'), { keepPending: true });
   };
 }
 
@@ -280,13 +288,13 @@ function pendingRid() {
   try { const p = JSON.parse(sessionStorage.getItem(PENDING_KEY) || 'null'); return p && p.params === location.search.slice(1) && Date.now() - p.t < 120000 ? p.rid : undefined; } catch { return undefined; }
 }
 function saveSession() {
-  try { sessionStorage.setItem(SESSION_KEY, JSON.stringify({ params: shareParams(), input: S.input, book: S.book, trace: S.trace })); } catch { /* private mode or quota: reload simply re-runs */ }
+  try { sessionStorage.setItem(SESSION_KEY, JSON.stringify({ params: shareParams(), lang: LANG, input: S.input, book: S.book, trace: S.trace })); } catch { /* private mode or quota: reload simply re-runs */ }
 }
 /** Same URL reloaded in this tab: show the finished plan at once instead of spending Qloo calls again. */
 function restoreSession() {
   let saved;
   try { saved = JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null'); } catch { return false; }
-  if (!saved?.book?.markets || saved.params !== location.search.slice(1)) return false;
+  if (!saved?.book?.markets || saved.params !== location.search.slice(1) || (saved.lang || 'en') !== LANG) return false; // a plan is replayed in the language it was written in
   S.input = saved.input; S.book = saved.book; S.trace = saved.trace || []; S.calls = []; S.tools = 0; S.curTool = null;
   fillForm(S.input);
   resetAgentView();
@@ -305,7 +313,7 @@ function failRun(title, msg, { keepPending = false } = {}) {
   setBusy(false);
   $('#live').hidden = true;
   $('#view-plan').dataset.state = 'empty';
-  $('#summary').innerHTML = `<strong>No plan for ${esc(S.input?.artist || 'this act')} yet.</strong> <span class="muted">Nothing was saved. The details are below.</span>`;
+  $('#summary').innerHTML = `<strong>${t('No plan for {artist} yet.', { artist: esc(S.input?.artist || t('this act')) })}</strong> <span class="muted">${t('Nothing was saved. The details are below.')}</span>`;
   showPlanError(title, msg, true);
   agentLine({ kind: 'fail', text: `${title}. ${msg}` });
   drawBaseMap();
@@ -323,15 +331,32 @@ function toolPhrase(d) {
   const a = d.args || {}; const city = S.cities?.[a.city_id]?.name;
   const kind = { venue: 'the room', after_party: 'an after-show spot', crowd_brief: 'the crowd brief' }[a.kind];
   return ({
-    resolve_entity: `Finding “${a.name}” in Qloo’s taste graph.`,
-    rank_markets: 'Ranking 34 metros by taste against population.',
-    audience_profile: 'Profiling the audience (aggregate segments only).',
-    momentum: 'Checking six months of momentum.',
-    local_picks: city && kind ? `${city}: picking ${kind}.` : 'Picking local spots.',
-    find_openers: city ? `${city}: finding an opener with the same taste.` : 'Finding openers.',
-    sponsor_fit: city ? `${city}: matching brands this crowd loves.` : 'Matching sponsors.',
-    llm_only_baseline: 'Asking the same model for a plan without Qloo, for the comparison.',
-  })[d.name] || `Running ${d.name}.`;
+    resolve_entity: t('Finding “{name}” in Qloo’s taste graph.', { name: a.name }),
+    rank_markets: t('Ranking 34 metros by taste against population.'),
+    audience_profile: t('Profiling the audience (aggregate segments only).'),
+    momentum: t('Checking six months of momentum.'),
+    local_picks: city && kind ? t(`{city}: picking ${kind}.`, { city }) : t('Picking local spots.'),
+    find_openers: city ? t('{city}: finding an opener with the same taste.', { city }) : t('Finding openers.'),
+    sponsor_fit: city ? t('{city}: matching brands this crowd loves.', { city }) : t('Matching sponsors.'),
+    llm_only_baseline: t('Asking the same model for a plan without Qloo, for the comparison.'),
+  })[d.name] || t('Running {name}.', { name: d.name });
+}
+
+/** Full-screen map. In the page the map asks for two fingers so a one-finger swipe scrolls the page;
+ *  opened full screen there is no page to scroll, so one finger moves the map. */
+function setMapExpanded(on) {
+  const wrap = $('#mapwrap'), btn = $('#mapExpand');
+  // A transformed ancestor (the animated view) traps position: fixed, so the map moves to <body> while open.
+  if (on && !S.mapHome) { S.mapHome = { parent: wrap.parentNode, next: wrap.nextSibling }; document.body.append(wrap); }
+  if (!on && S.mapHome) { S.mapHome.parent.insertBefore(wrap, S.mapHome.next); S.mapHome = null; }
+  wrap.classList.toggle('is-expanded', on);
+  document.documentElement.classList.toggle('map-open', on);
+  btn.setAttribute('aria-pressed', String(on));
+  btn.setAttribute('aria-label', t(on ? 'Close the full-screen map' : 'Open the map full screen'));
+  btn.querySelector('use').setAttribute('href', on ? '#i-x' : '#i-expand');
+  const coarse = matchMedia('(pointer: coarse)').matches;
+  if (S.map && coarse) { if (on) S.map.cooperativeGestures.disable(); else S.map.cooperativeGestures.enable(); }
+  requestAnimationFrame(() => { S.map?.resize(); fitTour(true); });
 }
 
 function setStep(stage) {
@@ -339,7 +364,7 @@ function setStep(stage) {
   // Parallel tool calls can start a later stage before an earlier one: the bar never moves backwards.
   const cur = all.indexOf($$('#steps li').find((li) => li.className === 'is-active')?.dataset.step);
   if (k < cur) return;
-  if (k >= 0) $('#stepLabel').textContent = `Step ${k + 1} of ${all.length}: ${stage}`;
+  if (k >= 0) $('#stepLabel').textContent = t('Step {k} of {n}: {stage}', { k: k + 1, n: all.length, stage: t(stage) });
   let passed = true;
   $$('#steps li').forEach((li) => {
     if (li.dataset.step === stage) { li.className = 'is-active'; passed = false; } else li.className = passed ? 'is-done' : '';
@@ -359,7 +384,7 @@ function liveLine(kind, html) {
 function resetAgentView() {
   $('#agentEmpty').hidden = true; $('#agentBody').hidden = false;
   $('#runlog').innerHTML = '';
-  $('#agentSummary').innerHTML = `<strong>The agent is planning ${esc(S.input.artist)}.</strong> <span class="muted">Each tool call and each Qloo request appears below as it happens.</span>`;
+  $('#agentSummary').innerHTML = `<strong>${t('The agent is planning {artist}.', { artist: esc(S.input.artist) })}</strong> <span class="muted">${t('Each tool call and each Qloo request appears below as it happens.')}</span>`;
   $('#agentStats').innerHTML = ''; $('#usage').innerHTML = ''; $('#usageFoot').textContent = ''; $('#guards').innerHTML = ''; $('#logMeta').textContent = '';
 }
 function agentLine({ kind, d, text }) {
@@ -368,10 +393,10 @@ function agentLine({ kind, d, text }) {
     log.insertAdjacentHTML('beforeend', `<li class="thought"${kind === 'fail' ? ' style="color:var(--status-critical-text)"' : ''}>${esc(text)}</li>`);
   } else if (kind === 'tool') {
     const li = document.createElement('li');
-    li.innerHTML = `<div class="tool"><b>${esc(d.name)}</b><span class="stage">${esc(d.stage || '')}</span><span class="args">${esc(JSON.stringify(d.args))}</span></div><ul class="calls"></ul>`;
+    li.innerHTML = `<div class="tool"><b>${esc(d.name)}</b><span class="stage">${esc(t(d.stage || ''))}</span><span class="args">${esc(JSON.stringify(d.args))}</span></div><ul class="calls"></ul>`;
     log.append(li); S.curTool = li.querySelector('.calls');
   } else if (kind === 'toolerr') {
-    log.insertAdjacentHTML('beforeend', `<li class="thought" style="color:var(--status-critical-text)">${esc(d.name)} failed: ${esc(d.error)}</li>`);
+    log.insertAdjacentHTML('beforeend', `<li class="thought" style="color:var(--status-critical-text)">${t('{name} failed: {error}', { name: esc(d.name), error: esc(d.error) })}</li>`);
   } else if (kind === 'call') {
     const ok = d.status === 'ok';
     const ft = d.params?.['filter.type'] ? ` · ${d.params['filter.type']}` : '';
@@ -385,28 +410,28 @@ function renderAgentFinal() {
   const rejected = S.calls.filter((c) => c.status === 'rejected').length;
   const endpoints = new Set(S.calls.map((c) => c.path));
   const types = new Set(S.calls.map((c) => c.params?.['filter.type']).filter(Boolean));
-  $('#agentSummary').innerHTML = `<strong>${plural(S.tools, 'tool call')} and ${plural(b.meta.calls, 'Qloo request')} in ${(b.meta.ms / 1000).toFixed(1)} s.</strong> ${rejected ? `${rejected} rejected by the parameter validator.` : 'None was rejected by the parameter validator.'} <span class="muted">Every fact in the plan comes from one of these results.</span>`;
-  if (b.summary) $('#runlog').insertAdjacentHTML('beforeend', `<li class="final"><b>Final answer</b><p>${esc(b.summary)}</p></li>`);
+  $('#agentSummary').innerHTML = `<strong>${t('{tools} and {requests} in {s} s.', { tools: plural(S.tools, 'tool call'), requests: plural(b.meta.calls, 'Qloo request'), s: dec((b.meta.ms / 1000).toFixed(1)) })}</strong> ${rejected ? t('{n} rejected by the parameter validator.', { n: rejected }) : t('None was rejected by the parameter validator.')} <span class="muted">${t('Every fact in the plan comes from one of these results.')}</span>`;
+  if (b.summary) $('#runlog').insertAdjacentHTML('beforeend', `<li class="final"><b>${t('Final answer')}</b><p>${esc(b.summary)}</p></li>`);
   $('#agentStats').innerHTML = [
-    stat('Tool calls', S.tools, 'typed, schema-checked'),
-    stat('Qloo requests', b.meta.calls, 'each one cited in the plan'),
-    stat('Endpoints', endpoints.size, [...endpoints].slice(0, 3).join(' · ')),
-    stat('Filter types', types.size, 'heatmap, demographics, entities'),
+    stat(t('Tool calls'), S.tools, t('typed, schema-checked')),
+    stat(cap(t('Qloo requests')), b.meta.calls, t('each one cited in the plan')),
+    stat(t('Endpoints'), endpoints.size, [...endpoints].slice(0, 3).join(' · ')),
+    stat(t('Filter types'), types.size, t('heatmap, demographics, entities')),
   ].join('');
   const groups = new Map();
   for (const c of S.calls) { const k = `${c.path}|${c.params?.['filter.type'] || ''}`; groups.set(k, (groups.get(k) || 0) + 1); }
-  $('#usage').innerHTML = `<thead><tr><th>Endpoint</th><th>filter.type</th><th class="is-num">Calls</th></tr></thead><tbody>${[...groups.entries()].sort((x, y) => y[1] - x[1]).map(([k, n]) => {
+  $('#usage').innerHTML = `<thead><tr><th>${t('Endpoint')}</th><th>filter.type</th><th class="is-num">${t('Calls')}</th></tr></thead><tbody>${[...groups.entries()].sort((x, y) => y[1] - x[1]).map(([k, n]) => {
     const [path, ft] = k.split('|');
     return `<tr><td><code>${esc(path)}</code></td><td class="is-muted"><code>${esc(ft || '–')}</code></td><td class="is-num">${n}</td></tr>`;
   }).join('')}</tbody>`;
-  $('#usageFoot').textContent = `${plural(groups.size, 'distinct query shape')}. Heatmap scores come from one national call, so every city is on the same scale.`;
+  $('#usageFoot').textContent = `${plural(groups.size, 'distinct query shape')}. ${t('Heatmap scores come from one national call, so every city is on the same scale.')}`;
   const live = b.meta.qloo === 'live';
   $('#guards').innerHTML = [
-    guard('Parameter validator', `${rejected} of ${b.meta.calls} requests rejected. Qloo ignores bad parameters silently, so we check each one first.`),
-    guard('Key stays on the server', 'GET only. The browser never talks to Qloo or to the model.'),
-    guard('One plan per click', 'A double click or a reconnect joins the run in flight. A daily cap per address protects the quota.'),
-    guard('Data source', live ? 'Live Qloo Insights API, aggregate affinities, never individuals.' : 'Synthetic data in mock mode. Responses mirror Qloo’s shapes; names are invented.'),
-    guard('Planner', S.cfg.llm.provider === 'mock' ? 'Scripted planner running the real tool loop (no model key on this server).' : `${S.cfg.llm.model} with tool calling.`),
+    guard(t('Parameter validator'), t('{rejected} of {calls} requests rejected. Qloo ignores bad parameters silently, so we check each one first.', { rejected, calls: b.meta.calls })),
+    guard(t('Key stays on the server'), t('GET only. The browser never talks to Qloo or to the model.')),
+    guard(t('One plan per click'), t('A double click or a reconnect joins the run in flight. A daily cap per address protects the quota.')),
+    guard(t('Data source'), live ? t('Live Qloo Insights API, aggregate affinities, never individuals.') : t('Synthetic data in mock mode. Responses mirror Qloo’s shapes; names are invented.')),
+    guard(t('Planner'), S.cfg.llm.provider === 'mock' ? t('Scripted planner running the real tool loop (no model key on this server).') : t('{model} with tool calling.', { model: S.cfg.llm.model })),
   ].join('');
 }
 const stat = (label, value, delta, cls = '') => `<div class="ui-stat" role="listitem"><p class="ui-stat__label">${esc(label)}</p><p class="ui-stat__value ${cls}" title="${esc(String(value).replace(/<[^>]+>/g, ''))}">${value}</p>${delta ? `<p class="ui-stat__delta">${esc(delta)}</p>` : ''}</div>`;
@@ -417,7 +442,7 @@ function render() {
   const b = S.book;
   $('#live').hidden = true;
   if (!b?.markets) {
-    failRun('No market ranking came back', 'The agent could not resolve this act. Add three sound-alike acts and try again.');
+    failRun(t('No market ranking came back'), t('The agent could not resolve this act. Add three sound-alike acts and try again.'));
     return;
   }
   const view = $('#view-plan');
@@ -429,20 +454,23 @@ function render() {
   const endpoints = new Set(S.calls.map((c) => c.path)).size;
   const rejected = S.calls.filter((c) => c.status === 'rejected').length;
   $('#summary').innerHTML = lead
-    ? `<strong>${esc(lead.name)} leads the tour.</strong> Fans rank it <span class="taste">#${lead.affinityRank} for taste</span> but it is only #${lead.popRank} for population. ${hidden} of the top ${top.length} markets are hidden markets${b.comparison ? `, and a plan without Qloo would miss ${onlyQloo} of these ${top.length} stops` : ''}.`
-    : 'No market stood out for this act.';
+    ? t('<strong>{name} leads the tour.</strong> Fans rank it <span class="taste">#{taste} for taste</span> but it is only #{pop} for population. {hidden} of the top {top} markets are hidden markets{miss}.', {
+      name: esc(lead.name), taste: lead.affinityRank, pop: lead.popRank, hidden, top: top.length,
+      miss: b.comparison ? t(', and a plan without Qloo would miss {n} of these {top} stops', { n: onlyQloo, top: top.length }) : '',
+    })
+    : t('No market stood out for this act.');
   const st = $('#stats');
   st.hidden = false;
   st.innerHTML = [
-    stat('Lead market', esc(lead?.name || '–'), lead ? `Hidden Market Score ${lead.hms} · ${lead.state}` : ''),
-    stat('Hidden markets', `${hidden}<small>of ${top.length}</small>`, 'beat their population rank by 5+'),
-    stat('Changed by Qloo', `${onlyQloo}<small>of ${top.length}</small>`, 'stops a population plan misses', 'is-taste'),
-    stat('Qloo requests', b.meta.calls, `${plural(endpoints, 'endpoint')} · ${rejected} rejected`),
+    stat(t('Lead market'), esc(lead?.name || '–'), lead ? `${t('Hidden Market Score {hms}', { hms: lead.hms })} · ${lead.state}` : ''),
+    stat(t('Hidden markets'), `${hidden}<small>${t('of {n}', { n: top.length })}</small>`, t('beat their population rank by 5+')),
+    stat(t('Changed by Qloo'), `${onlyQloo}<small>${t('of {n}', { n: top.length })}</small>`, t('stops a population plan misses'), 'is-taste'),
+    stat(cap(t('Qloo requests')), b.meta.calls, `${plural(endpoints, 'endpoint')} · ${t('{n} rejected', { n: rejected })}`),
   ].join('');
   spring(st, [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { preset: 'smooth', fill: 'none' });
   $('#planToggle').hidden = !b.baseline;
   renderDates(); renderCompare(); renderMarkets(); renderAudience(); renderMomentum(); renderAgentFinal();
-  $('#planFoot').textContent = `${live ? 'Source: Qloo Insights API. Aggregate taste affinities, never individuals.' : 'Synthetic data: acts, venues, brands and numbers are invented in mock mode, with Qloo’s real request and response shapes.'} Agent: ${S.cfg.llm.provider === 'mock' ? 'scripted planner' : S.cfg.llm.model}. Planned ${new Date(b.createdAt).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}.`;
+  $('#planFoot').textContent = `${live ? t('Source: Qloo Insights API. Aggregate taste affinities, never individuals.') : t('Synthetic data: acts, venues, brands and numbers are invented in mock mode, with Qloo’s real request and response shapes.')} ${t('Agent: {agent}. Planned {date}.', { agent: S.cfg.llm.provider === 'mock' ? t('scripted planner') : S.cfg.llm.model, date: new Date(b.createdAt).toLocaleString(LOCALE, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) })}`;
   drawMap();
   updateToolbar();
   spring($('.when-ready'), [{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], { preset: 'smooth', fill: 'none' });
@@ -454,30 +482,30 @@ function renderDates() {
   $('#dates').innerHTML = dates.map((d, i) => {
     const m = d.market; const v = d.venue?.picks?.[0]; const o = d.opener?.openers?.[0]; const s = d.sponsor?.sponsors?.[0]; const a = d.after_party?.picks?.[0];
     const g = d.opener?.gain?.overlap;
-    return `<li><button class="ui-row" type="button" data-city="${esc(m.id)}" aria-label="Date ${i + 1}, ${esc(m.name)}. Open the dossier">
+    return `<li><button class="ui-row" type="button" data-city="${esc(m.id)}" aria-label="${t('Date {n}, {name}. Open the dossier', { n: i + 1, name: esc(m.name) })}">
       <span class="date-n">${i + 1}</span>
       <span class="ui-row__body">
         <span class="ui-row__title">${esc(m.name)}<small>${esc(m.state)} · ${fmtPop(m.pop)}</small></span>
-        <span class="ui-row__subtitle">Taste #${m.affinityRank}, population #${m.popRank}${m.hidden ? ' · <span class="ui-status ui-status--ok">Hidden market</span>' : ''}</span>
+        <span class="ui-row__subtitle">${t('Taste #{taste}, population #{pop}', { taste: m.affinityRank, pop: m.popRank })}${m.hidden ? ` · <span class="ui-status ui-status--ok">${t('Hidden market')}</span>` : ''}</span>
         <dl class="date-facts">
-          <dt>Room</dt><dd>${esc(v?.name || '–')}</dd>
-          <dt>Opener</dt><dd>${esc(o?.name || '–')}${g != null ? ` <span>· ${pct(g)} % taste fit</span>` : ''}</dd>
-          <dt>Sponsor</dt><dd>${esc(s?.name || '–')}</dd>
-          <dt>After-show</dt><dd>${esc(a?.name || '–')}</dd>
+          <dt>${t('Room')}</dt><dd>${esc(v?.name || '–')}</dd>
+          <dt>${t('Opener')}</dt><dd>${esc(o?.name || '–')}${g != null ? ` <span>· ${t('{n} % taste fit', { n: pct(g) })}</span>` : ''}</dd>
+          <dt>${t('Sponsor')}</dt><dd>${esc(s?.name || '–')}</dd>
+          <dt>${t('After-show')}</dt><dd>${esc(a?.name || '–')}</dd>
         </dl>
       </span>
       <span class="hms"><b>${m.hms}</b><small>HMS</small></span>
       ${icon('i-chev-r', 'ui-row__chevron')}
     </button></li>`;
-  }).join('') || '<li><div class="ui-row"><span class="ui-row__body"><span class="ui-row__subtitle">No dates could be prepped for this act.</span></span></div></li>';
+  }).join('') || `<li><div class="ui-row"><span class="ui-row__body"><span class="ui-row__subtitle">${t('No dates could be prepped for this act.')}</span></span></div></li>`;
   const ids = dates.map((d) => d.market.name);
-  $('#datesFoot').textContent = ids.length ? `Route: ${b_route()}. Nearest-neighbour order, so the van doesn’t zigzag.` : '';
+  $('#datesFoot').textContent = ids.length ? t('Route: {route}. Nearest-neighbour order, so the van doesn’t zigzag.', { route: b_route() }) : '';
 }
 function b_route() { return (S.book.route || []).map((id) => S.cities[id]?.name).filter(Boolean).join(' → '); }
 
 function renderCompare() {
   const b = S.book; const base = b.baseline;
-  if (!base) { $('#compare').innerHTML = '<div class="ui-empty"><p>The no-Qloo baseline did not come back for this run.</p></div>'; $('#compareFoot').textContent = ''; return; }
+  if (!base) { $('#compare').innerHTML = `<div class="ui-empty"><p>${t('The no-Qloo baseline did not come back for this run.')}</p></div>`; $('#compareFoot').textContent = ''; return; }
   const left = base.cities.map((c) => c.id); const leftSet = new Set(left);
   const right = b.markets.top;
   const n = Math.max(left.length, right.length);
@@ -485,49 +513,52 @@ function renderCompare() {
     const l = S.cities[left[i]]; const r = right[i];
     return `<tr><td>${i + 1}</td><td class="pop">${l ? `${esc(l.name)}<small>${fmtPop(l.pop)}</small>` : ''}</td><td class="${r && !leftSet.has(r.id) ? 'is-new' : 'is-shared'}">${r ? `${esc(r.name)}<small>HMS ${r.hms}</small>` : ''}</td></tr>`;
   }).join('');
-  $('#compare').innerHTML = `<table><thead><tr><th>#</th><th>Without Qloo</th><th class="qloo">With Qloo</th></tr></thead><tbody>${rows}</tbody></table>`;
+  $('#compare').innerHTML = `<table><thead><tr><th>#</th><th>${t('Without Qloo')}</th><th class="qloo">${t('With Qloo')}</th></tr></thead><tbody>${rows}</tbody></table>`;
   const shared = b.comparison?.shared?.length ?? 0;
-  $('#compareFoot').textContent = `Same act, same question. Without taste data the plan follows population. With Qloo, ${b.comparison?.onlyQloo?.length ?? 0} of ${right.length} stops change${shared ? ` and ${shared} stay${shared === 1 ? 's' : ''}` : ''}. Stops in bold are the ones only Qloo found.`;
+  $('#compareFoot').textContent = t('Same act, same question. Without taste data the plan follows population. With Qloo, {n} of {total} stops change{stay}. Stops in bold are the ones only Qloo found.', {
+    n: b.comparison?.onlyQloo?.length ?? 0, total: right.length,
+    stay: shared ? (shared === 1 ? t(' and {shared} stays', { shared }) : t(' and {shared} stay', { shared })) : '',
+  });
 }
 
 function renderMarkets() {
   const all = S.book.markets.all;
   const hiddenN = all.filter((m) => m.hidden).length;
-  $('#marketsSub').textContent = `${hiddenN} hidden markets out of ${all.length}. ${S.book.markets.comparable ? 'Scored from one national heatmap call, so cities compare fairly.' : `Strategy: ${S.book.markets.strategy.replace(/_/g, ' ')}, per city, approximate.`}`;
-  const t = $('#marketsTable'); t.classList.remove('is-all');
-  t.innerHTML = `<thead><tr><th class="is-num" data-slot="hide-compact">#</th><th>City</th><th>Hidden Market Score</th><th class="is-num">Taste rank</th><th class="is-num">Population rank</th><th class="is-num">Gap</th><th>Verdict</th></tr></thead><tbody>${
+  $('#marketsSub').textContent = `${t('{n} hidden markets out of {total}.', { n: hiddenN, total: all.length })} ${S.book.markets.comparable ? t('Scored from one national heatmap call, so cities compare fairly.') : t('Strategy: {s}, per city, approximate.', { s: S.book.markets.strategy.replace(/_/g, ' ') })}`;
+  const tbl = $('#marketsTable'); tbl.classList.remove('is-all');
+  tbl.innerHTML = `<thead><tr><th class="is-num" data-slot="hide-compact">#</th><th>${t('City')}</th><th>${t('Hidden Market Score')}</th><th class="is-num">${t('Taste rank')}</th><th class="is-num">${t('Population rank')}</th><th class="is-num">${t('Gap')}</th><th>${t('Verdict')}</th></tr></thead><tbody>${
     all.map((m, i) => `<tr data-city="${esc(m.id)}" class="${i >= 12 ? 'is-hidden-row' : ''}">
       <td class="is-num is-muted" data-slot="hide-compact">${i + 1}</td>
-      <td class="city" data-slot="title"><button class="row-link" type="button" data-city="${esc(m.id)}" aria-label="${esc(m.name)}, Hidden Market Score ${m.hms}. Open the dossier">${esc(m.name)}</button><small>${esc(m.state)} · ${fmtPop(m.pop)}</small></td>
+      <td class="city" data-slot="title"><button class="row-link" type="button" data-city="${esc(m.id)}" aria-label="${t('{name}, Hidden Market Score {hms}. Open the dossier', { name: esc(m.name), hms: m.hms })}">${esc(m.name)}</button><small>${esc(m.state)} · ${fmtPop(m.pop)}</small></td>
       <td data-slot="trailing"><div class="hmsbar"><div class="track"><div class="fill" style="width:${m.hms}%;--d:${Math.min(i, 12) * 25}ms"></div></div><b>${m.hms}</b></div></td>
-      <td class="is-num" data-slot="meta">#${m.affinityRank}<span class="only-compact"> taste · #${m.popRank} population · ${signed(m.rankGap)}</span></td>
+      <td class="is-num" data-slot="meta">#${m.affinityRank}<span class="only-compact"> ${t('taste · #{pop} population', { pop: m.popRank })} · ${signed(m.rankGap)}</span></td>
       <td class="is-num" data-slot="hide-compact">#${m.popRank}</td>
       <td class="is-num ${m.rankGap > 0 ? 'gap-up' : 'gap-down'}" data-slot="hide-compact">${signed(m.rankGap)}</td>
-      <td data-slot="hide-compact">${m.hidden ? '<span class="ui-status ui-status--ok">Hidden market</span>' : '<span class="is-muted">–</span>'}</td>
+      <td data-slot="hide-compact">${m.hidden ? `<span class="ui-status ui-status--ok">${t('Hidden market')}</span>` : '<span class="is-muted">–</span>'}</td>
     </tr>`).join('')
   }</tbody>`;
-  $('#marketsCount').textContent = `12 of ${all.length}`;
-  $('#marketsMore').textContent = `Show all ${all.length}`;
+  $('#marketsCount').textContent = t('{a} of {b}', { a: 12, b: all.length });
+  $('#marketsMore').textContent = t('Show all {n}', { n: all.length });
 }
 
 function renderAudience() {
   const a = S.book.audience;
-  if (!a || (!a.age && !a.gender)) { $('#audience').innerHTML = '<p class="ui-footnote ui-secondary">Qloo returned no demographic signal for this act. The rest of the plan does not depend on it.</p>'; return; }
-  const label = { '24_and_younger': '24 and under', '25_to_29': '25–29', '30_to_34': '30–34', '35_to_44': '35–44', '45_to_54': '45–54', '55_and_older': '55+', male: 'Men', female: 'Women' };
+  if (!a || (!a.age && !a.gender)) { $('#audience').innerHTML = `<p class="ui-footnote ui-secondary">${t('Qloo returned no demographic signal for this act. The rest of the plan does not depend on it.')}</p>`; return; }
+  const label = Object.fromEntries(Object.entries({ '24_and_younger': '24 and under', '25_to_29': '25–29', '30_to_34': '30–34', '35_to_44': '35–44', '45_to_54': '45–54', '55_and_older': '55+', male: 'Men', female: 'Women' }).map(([k, v]) => [k, t(v)]));
   const age = Object.entries(a.age || {}); const gender = Object.entries(a.gender || {});
   const max = Math.max(0.01, ...[...age, ...gender].map(([, v]) => Math.abs(v)));
   const row = ([k, v]) => `<div class="bar"><span>${esc(label[k] || k)}</span><div class="axis"><div class="v ${v >= 0 ? 'pos' : 'neg'}" style="width:${(Math.abs(v) / max) * 50}%"></div></div><span class="n">${signed(Number(v), 2)}</span></div>`;
   const best = age.slice().sort((x, y) => y[1] - x[1])[0];
   $('#audience').innerHTML = age.map(row).join('') + (gender.length ? '<div class="bar-sep"></div>' + gender.map(row).join('') : '')
-    + `<p class="advice">${best ? `Over-indexes most with <strong>${esc(label[best[0]] || best[0])}</strong>. ` : ''}<span class="ui-secondary">Positive means over-represented. Not a headcount, never about individuals.</span></p>`;
+    + `<p class="advice">${best ? t('Over-indexes most with <strong>{seg}</strong>. ', { seg: esc(label[best[0]] || best[0]) }) : ''}<span class="ui-secondary">${t('Positive means over-represented. Not a headcount, never about individuals.')}</span></p>`;
 }
 
 function renderMomentum() {
   const m = S.book.momentum;
-  if (!m?.series?.length) { $('#momentum').innerHTML = '<p class="ui-footnote ui-secondary">No trend data for this window. Room sizes fall back to the taste score alone.</p>'; return; }
+  if (!m?.series?.length) { $('#momentum').innerHTML = `<p class="ui-footnote ui-secondary">${t('No trend data for this window. Room sizes fall back to the taste score alone.')}</p>`; return; }
   const series = [...m.series].sort((x, y) => String(x.date).localeCompare(String(y.date)));
-  const fmt = (d) => new Date(`${d}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  $('#momentumSub').innerHTML = `${esc(fmt(series[0].date))} to ${esc(fmt(series.at(-1).date))}, weekly percentile from <code>/v2/trending</code>`;
+  const fmt = (d) => new Date(`${d}T00:00:00`).toLocaleDateString(LOCALE, { month: 'short', day: 'numeric' });
+  $('#momentumSub').innerHTML = t('{from} to {to}, weekly percentile from <code>/v2/trending</code>', { from: esc(fmt(series[0].date)), to: esc(fmt(series.at(-1).date)) });
   const ys = series.map((p) => p.percentile); const lo = Math.floor(Math.min(...ys) - 1), hi = Math.ceil(Math.max(...ys) + 1);
   const W = 400, H = 150, L = 30, R = 46, T = 10, B = 22;
   const x = (i) => L + (i * (W - L - R)) / Math.max(1, ys.length - 1);
@@ -536,24 +567,31 @@ function renderMomentum() {
   const last = ys.at(-1);
   const delta = Number(m.delta);
   const tone = m.verdict === 'rising' ? 'ok' : m.verdict === 'cooling' ? 'warn' : 'info';
-  $('#momentum').innerHTML = `<div class="momentum-head"><span class="ui-status ui-status--${tone}">${esc(m.verdict[0].toUpperCase() + m.verdict.slice(1))}</span>${Number.isFinite(delta) ? `<span class="ui-footnote ui-secondary">${signed(delta, 1)} percentile points over the window</span>` : ''}</div>
-    <div class="ui-chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Weekly popularity percentile, ${esc(m.verdict)}, from ${ys[0].toFixed(0)} to ${last.toFixed(0)}">
+  $('#momentum').innerHTML = `<div class="momentum-head"><span class="ui-status ui-status--${tone}">${esc(t(m.verdict[0].toUpperCase() + m.verdict.slice(1)))}</span>${Number.isFinite(delta) ? `<span class="ui-footnote ui-secondary">${t('{delta} percentile points over the window', { delta: signed(delta, 1) })}</span>` : ''}</div>
+    <div class="ui-chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${t('Weekly popularity percentile, {verdict}, from {from} to {to}', { verdict: esc(t(m.verdict)), from: ys[0].toFixed(0), to: last.toFixed(0) })}">
       <line class="ui-chart__grid" x1="${L}" x2="${W - R}" y1="${y(hi)}" y2="${y(hi)}"/><line class="ui-chart__grid" x1="${L}" x2="${W - R}" y1="${y((lo + hi) / 2)}" y2="${y((lo + hi) / 2)}"/><line class="ui-chart__axis" x1="${L}" x2="${W - R}" y1="${y(lo)}" y2="${y(lo)}"/>
       <text class="ui-chart__label" x="${L - 6}" y="${y(hi) + 4}" text-anchor="end">${hi}</text><text class="ui-chart__label" x="${L - 6}" y="${y(lo) + 4}" text-anchor="end">${lo}</text>
       <text class="ui-chart__label" x="${L}" y="${H - 4}">${esc(fmt(series[0].date))}</text><text class="ui-chart__label" x="${W - R}" y="${H - 4}" text-anchor="end">${esc(fmt(series.at(-1).date))}</text>
       <path class="ui-chart__area" d="${d} L${x(ys.length - 1)},${y(lo)} L${x(0)},${y(lo)} Z"/><path class="ui-chart__line" d="${d}"/>
       <circle class="ui-chart__dot" cx="${x(ys.length - 1)}" cy="${y(last)}" r="4"/><text class="ui-chart__label" x="${x(ys.length - 1) + 8}" y="${y(last) + 4}" style="fill:var(--label);font-weight:600">${last.toFixed(0)}</text>
     </svg></div>
-    <p class="advice">${esc(m.advice)}</p>`;
+    <p class="advice">${esc(t(m.advice))}</p>`;
 }
 
 // ---------------- map ----------------
 const STYLE = () => `https://tiles.openfreemap.org/styles/${isDark() ? 'dark' : 'positron'}`;
 const US = [[-125, 24.5], [-66.9, 49.5]];
+// MapLibre's own labels (map region, markers, two-finger hint on phones) in French.
+const MAP_LOCALE_FR = {
+  'Map.Title': 'Carte', 'Marker.Title': 'Repère sur la carte', 'Popup.Close': 'Fermer la fenêtre',
+  'CooperativeGesturesHandler.WindowsHelpText': 'Utilisez Ctrl + molette pour zoomer sur la carte',
+  'CooperativeGesturesHandler.MacHelpText': 'Utilisez ⌘ + molette pour zoomer sur la carte',
+  'CooperativeGesturesHandler.MobileHelpText': 'Utilisez deux doigts pour déplacer la carte',
+};
 function initMap() {
-  if (!window.maplibregl) { $('#map').innerHTML = '<div class="map-fallback">The map could not load (offline?). The plan below still works.</div>'; return; }
+  if (!window.maplibregl) { $('#map').innerHTML = `<div class="map-fallback">${t('The map could not load (offline?). The plan below still works.')}</div>`; return; }
   try {
-    S.map = new maplibregl.Map({ container: 'map', style: STYLE(), bounds: US, fitBoundsOptions: { padding: mapPadding() }, attributionControl: false, dragRotate: false, pitchWithRotate: false, cooperativeGestures: matchMedia('(pointer: coarse)').matches });
+    S.map = new maplibregl.Map({ container: 'map', style: STYLE(), bounds: US, fitBoundsOptions: { padding: mapPadding() }, attributionControl: false, dragRotate: false, pitchWithRotate: false, cooperativeGestures: matchMedia('(pointer: coarse)').matches, ...(LANG === 'fr' ? { locale: MAP_LOCALE_FR } : {}) });
     S.map.touchZoomRotate.disableRotation();
     S.map.on('style.load', () => { quietStyle(); drawCurrent(); });
     S.map.once('load', () => { quietStyle(); drawCurrent(); });
@@ -561,7 +599,7 @@ function initMap() {
     drawCurrent();
     S.map.on('error', () => {});
     matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => S.map.setStyle(STYLE()));
-  } catch (e) { $('#map').innerHTML = `<div class="map-fallback">The map could not load (${esc(e.message)}). The plan below still works.</div>`; }
+  } catch (e) { $('#map').innerHTML = `<div class="map-fallback">${t('The map could not load ({error}). The plan below still works.', { error: esc(e.message) })}</div>`; }
 }
 function quietStyle() {
   // Quiet basemap: our metros carry the labels, not the tiles.
@@ -602,9 +640,9 @@ function addMarker(m, { size, bg, label = '', rank = 0, minor = false, hidden = 
   el.innerHTML = `<div class="dot" style="width:${size}px;height:${size}px;background:${bg};color:${ink}">${rank && size >= 18 ? rank : ''}</div>${label ? `<div class="lbl">${esc(label)}</div>` : ''}`;
   el.tabIndex = minor ? -1 : 0;
   el.setAttribute('role', 'button');
-  el.setAttribute('aria-label', `${m.name}${m.hms != null ? `, Hidden Market Score ${m.hms}` : ''}. Open the dossier`);
-  el.title = m.hms != null ? `${m.name} · HMS ${m.hms} · taste #${m.affinityRank} vs population #${m.popRank}` : `${m.name} · ${fmtPop(m.pop)}`;
-  el.addEventListener('click', (e) => { e.stopPropagation(); if (S.book) openDossier(m.id); else if (!S.running) toast({ title: m.name, detail: `Metro population ${fmtPop(m.pop)}. Run a plan to score it by taste.` }); });
+  el.setAttribute('aria-label', `${m.name}${m.hms != null ? t(', Hidden Market Score {hms}', { hms: m.hms }) : ''}${t('. Open the dossier')}`);
+  el.title = m.hms != null ? `${m.name} · HMS ${m.hms}${m.affinityRank != null ? ` · ${t('taste #{taste} vs population #{pop}', { taste: m.affinityRank, pop: m.popRank })}` : ''}` : `${m.name} · ${fmtPop(m.pop)}`; // ranks arrive with the finished plan
+  el.addEventListener('click', (e) => { e.stopPropagation(); if (S.book) openDossier(m.id); else if (!S.running) toast({ title: m.name, detail: t('Metro population {pop}. Run a plan to score it by taste.', { pop: fmtPop(m.pop) }) }); });
   el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); } });
   S.markers.push(new maplibregl.Marker({ element: el }).setLngLat([m.lng, m.lat]).addTo(S.map));
 }
@@ -627,7 +665,7 @@ function drawBaseMap() {
   const all = S.cfg.cities; const maxPop = Math.max(...all.map((c) => c.pop));
   const k = $('#mapwrap').clientWidth < 560 ? 0.62 : 1;
   for (const c of all) addMarker(c, { size: Math.round((7 + 15 * Math.sqrt(c.pop / maxPop)) * k), bg: greyDot(), minor: true });
-  $('#legend').innerHTML = `<b>34 US metros</b><span class="ui-secondary">Sized by population, the way tours are usually routed.${S.running ? ' Scoring them by taste…' : ''}</span>`;
+  $('#legend').innerHTML = `<b>${t('34 US metros')}</b><span class="ui-secondary">${t('Sized by population, the way tours are usually routed.')}${S.running ? ` ${t('Scoring them by taste…')}` : ''}</span>`;
 }
 function drawLiveTop() {
   if (!S.map || !S.liveTop) return;
@@ -641,7 +679,7 @@ function drawLiveTop() {
   S.routeCoords = [...top.keys()].map((id) => S.cities[id]).filter(Boolean).map((c) => [c.lng, c.lat]);
   fitTour(true, true);
   declutter();
-  $('#legend').innerHTML = '<b>Scored by taste</b><span class="ui-secondary">The top markets light up as the agent ranks them. Preparing the dates…</span>';
+  $('#legend').innerHTML = `<b>${t('Scored by taste')}</b><span class="ui-secondary">${t('The top markets light up as the agent ranks them. Preparing the dates…')}</span>`;
 }
 let routeAnim;
 function drawMap() {
@@ -662,8 +700,8 @@ function drawMap() {
     addMarker(m, { size, bg: qloo ? tasteColor(m.hms) : (isDark() ? '#8E8E93' : '#636366'), rank, label: m.name, hidden: qloo && m.hidden, enter: true, delay: rank * 55 });
   }
   $('#legend').innerHTML = qloo
-    ? '<b>With Qloo</b><div class="ramp"></div><div class="ends"><span>Hidden Market Score</span><span>higher</span></div><span class="ui-secondary">Size is taste affinity. A ring marks a hidden market.</span>'
-    : '<b>Without Qloo</b><div class="ramp is-pop"></div><div class="ends"><span>Population</span><span>bigger</span></div><span class="ui-secondary">What a model without taste data proposes.</span>';
+    ? `<b>${t('With Qloo')}</b><div class="ramp"></div><div class="ends"><span>${t('Hidden Market Score')}</span><span>${t('higher')}</span></div><span class="ui-secondary">${t('Size is taste affinity. A ring marks a hidden market.')}</span>`
+    : `<b>${t('Without Qloo')}</b><div class="ramp is-pop"></div><div class="ends"><span>${t('Population')}</span><span>${t('bigger')}</span></div><span class="ui-secondary">${t('What a model without taste data proposes.')}</span>`;
   const coords = routeIds.map((id) => S.cities[id]).filter(Boolean).map((c) => [c.lng, c.lat]);
   S.routeCoords = coords;
   fitTour(true);
@@ -698,7 +736,7 @@ function setPlan(p) {
   S.plan = p;
   const r = $(`#planToggle input[value="${p}"]`);
   if (r && !r.checked) { r.checked = true; r.dispatchEvent(new Event('change', { bubbles: true })); }
-  $('#compareFlip').textContent = p === 'qloo' ? 'Show without Qloo' : 'Show with Qloo';
+  $('#compareFlip').textContent = p === 'qloo' ? t('Show without Qloo') : t('Show with Qloo');
   drawMap();
 }
 
@@ -709,7 +747,7 @@ async function openDossier(cityId) {
   S.dossierId = cityId;
   $('#dossierTitle').textContent = market.name;
   const body = $('#dossierBody');
-  body.innerHTML = dossierHead(market) + `<div class="d-skel">${['70%', '90%', '55%', '80%', '65%'].map((w) => `<div class="ui-skeleton" style="width:${w};height:14px"></div>`).join('')}<p class="ui-footnote ui-secondary">Asking Qloo for the room, opener, sponsor and crowd in ${esc(market.name)}…</p></div>`;
+  body.innerHTML = dossierHead(market) + `<div class="d-skel">${['70%', '90%', '55%', '80%', '65%'].map((w) => `<div class="ui-skeleton" style="width:${w};height:14px"></div>`).join('')}<p class="ui-footnote ui-secondary">${t('Asking Qloo for the room, opener, sponsor and crowd in {city}…', { city: esc(market.name) })}</p></div>`;
   if (!$('#sheet-dossier').open) openSheet('sheet-dossier');
   body.scrollTop = 0;
   updateNext();
@@ -717,7 +755,7 @@ async function openDossier(cityId) {
   if (!d) {
     try { d = await fetchDossier(market); } catch (e) {
       if (S.dossierId !== cityId) return;
-      body.innerHTML = dossierHead(market) + `<div class="ui-banner ui-banner--critical">${icon('i-alert')}<div style="flex:1"><strong>This dossier did not load</strong><p>${esc(e.message)}. The plan itself is unchanged.</p></div><button class="ui-button ui-button--sm" type="button" id="dossierRetry">Try again</button></div>`;
+      body.innerHTML = dossierHead(market) + `<div class="ui-banner ui-banner--critical">${icon('i-alert')}<div style="flex:1"><strong>${t('This dossier did not load')}</strong><p>${t('{error}. The plan itself is unchanged.', { error: esc(e.message) })}</p></div><button class="ui-button ui-button--sm" type="button" id="dossierRetry">${t('Try again')}</button></div>`;
       $('#dossierRetry').addEventListener('click', () => openDossier(cityId));
       return;
     }
@@ -739,115 +777,148 @@ async function fetchDossier(market) {
 function dossierOrder() { const top = S.book.markets.top.map((m) => m.id); return top.includes(S.dossierId) ? top : S.book.markets.all.map((m) => m.id); }
 function updateNext() {
   const order = dossierOrder(); const i = order.indexOf(S.dossierId); const next = S.book.markets.all.find((m) => m.id === order[(i + 1) % order.length]);
-  $('#dossierNext').setAttribute('aria-label', `Next market: ${next?.name || ''}`);
+  $('#dossierNext').setAttribute('aria-label', t('Next market: {name}', { name: next?.name || '' }));
 }
 function nextDossier() { const order = dossierOrder(); const i = order.indexOf(S.dossierId); openDossier(order[(i + 1) % order.length]); }
 
 function dossierHead(m) {
   const idx = (S.book.dates || []).findIndex((d) => d.market?.id === m.id);
-  const where = idx >= 0 ? `Date ${idx + 1} of the tour.` : (S.book.markets.top.some((t) => t.id === m.id) ? 'In the top markets, not yet a prepped date.' : 'Outside the top markets.');
+  const where = idx >= 0 ? t('Date {n} of the tour.', { n: idx + 1 }) : (S.book.markets.top.some((x) => x.id === m.id) ? t('In the top markets, not yet a prepped date.') : t('Outside the top markets.'));
   return `<div class="d-score"><div class="big"><b>${m.hms}</b><small>HMS</small></div>
-    <p><strong>${esc(m.name)}, ${esc(m.state)}. Taste #${m.affinityRank}, population #${m.popRank}.</strong> ${m.rankGap > 0 ? `Beats its population rank by ${m.rankGap} places.` : `Taste does not beat population here (${signed(m.rankGap)}).`} Taste affinity ${pct(m.affinity)} of 100, metro population ${fmtPop(m.pop)}. ${where}${m.hidden ? ' <span class="ui-status ui-status--ok">Hidden market</span>' : ''}</p></div>`;
+    <p><strong>${esc(m.name)}, ${esc(m.state)}. ${t('Taste #{taste}, population #{pop}', { taste: m.affinityRank, pop: m.popRank })}.</strong> ${m.rankGap > 0 ? t('Beats its population rank by {n} places.', { n: m.rankGap }) : t('Taste does not beat population here ({gap}).', { gap: signed(m.rankGap) })} ${t('Taste affinity {aff} of 100, metro population {pop}.', { aff: pct(m.affinity), pop: fmtPop(m.pop) })} ${where}${m.hidden ? ` <span class="ui-status ui-status--ok">${t('Hidden market')}</span>` : ''}</p></div>`;
 }
 function evidence(prov) {
   const list = (Array.isArray(prov) ? prov : [prov]).filter(Boolean);
   if (!list.length) return '';
   const txt = list.map((p) => `GET ${p.path}\n${Object.entries(p.params || {}).map(([k, v]) => `  ${k}=${v}`).join('\n')}${p.ms != null ? `\n  · ${p.mode} · ${p.ms} ms${p.cache && p.cache !== 'mock' ? ` · cache ${p.cache}` : ''}` : ''}`).join('\n\n');
-  return `<details class="evidence"><summary>Qloo request${list.length > 1 ? `s (${list.length})` : ''} behind this pick</summary><pre>${esc(txt)}</pre></details>`;
+  return `<details class="evidence"><summary>${list.length > 1 ? t('Qloo requests ({n}) behind this pick', { n: list.length }) : t('Qloo request behind this pick')}</summary><pre>${esc(txt)}</pre></details>`;
 }
 function drivers(x) {
   const ex = x?.explainability?.['signal.interests.entities'];
   if (!Array.isArray(ex) || !ex.length) return '';
   const names = Object.fromEntries([S.book.artist, ...S.book.proxies].filter(Boolean).map((r) => [r.selected.id, r.selected.name]));
-  return `<div class="drivers" aria-label="Which inputs drove this pick">${ex.slice().sort((a, b) => b.score - a.score).slice(0, 4).map((e) => `<div class="dv"><span>${esc(names[e.entity_id] || 'Signal')}</span><i style="--v:${pct(e.score)}%"></i><b>${pct(e.score)}</b></div>`).join('')}</div>`;
+  return `<div class="drivers" aria-label="${t('Which inputs drove this pick')}">${ex.slice().sort((a, b) => b.score - a.score).slice(0, 4).map((e) => `<div class="dv"><span>${esc(names[e.entity_id] || t('Signal'))}</span><i style="--v:${pct(e.score)}%"></i><b>${pct(e.score)}</b></div>`).join('')}</div>`;
 }
 function pickBlock(title, sec, list, extra = '') {
   const items = list || [];
-  if (!items.length) return `<div class="ui-list-section pick"><div class="ui-list__header"><strong>${title}</strong></div><ul class="ui-list"><li><div class="ui-row"><span class="ui-row__body"><span class="ui-row__subtitle">Qloo returned nothing for this slot. The agent leaves it open rather than guess.</span></span></div></li></ul>${evidence(sec?.provenance)}</div>`;
+  if (!items.length) return `<div class="ui-list-section pick"><div class="ui-list__header"><strong>${title}</strong></div><ul class="ui-list"><li><div class="ui-row"><span class="ui-row__body"><span class="ui-row__subtitle">${t('Qloo returned nothing for this slot. The agent leaves it open rather than guess.')}</span></span></div></li></ul>${evidence(sec?.provenance)}</div>`;
   const [top, ...alts] = items;
   return `<div class="ui-list-section pick"><div class="ui-list__header"><strong>${title}</strong></div>
     <ul class="ui-list"><li><div class="ui-row"><span class="ui-row__body"><span class="ui-row__title">${esc(top.name)}</span>
-      ${top.description || top.address ? `<span class="ui-row__subtitle">${esc([top.description, top.address].filter(Boolean).join(' · '))}</span>` : ''}
-      ${extra}${drivers(top)}</span><span class="aff"><b>${pct(top.affinity)}</b>affinity</span></div></li>
-      ${alts.length ? `<li><div class="ui-row"><span class="ui-row__body"><span class="alts">Also strong: ${alts.slice(0, 3).map((a) => esc(a.name)).join(', ')}</span></span></div></li>` : ''}</ul>
+      ${top.description || top.address ? `<span class="ui-row__subtitle">${esc([tData(top.description), top.address].filter(Boolean).join(' · '))}</span>` : ''}
+      ${extra}${drivers(top)}</span><span class="aff"><b>${pct(top.affinity)}</b>${t('affinity')}</span></div></li>
+      ${alts.length ? `<li><div class="ui-row"><span class="ui-row__body"><span class="alts">${t('Also strong: {names}', { names: alts.slice(0, 3).map((a) => esc(a.name)).join(', ') })}</span></span></div></li>` : ''}</ul>
     ${evidence(sec?.provenance)}</div>`;
 }
 function dossierBody(d) {
   const g = d.opener?.gain;
-  const gain = g?.overlap != null ? `<span class="gain">${pct(g.overlap)} % taste fit with the headliner${g.shared?.length ? `, shared: ${esc(g.shared.slice(0, 3).join(', '))}` : ''}${g.differentiators?.length ? `; adds ${esc(g.differentiators.slice(0, 3).join(', '))}` : ''} (<code>/v2/analysis/compare</code>).</span>` : '';
+  const gain = g?.overlap != null ? `<span class="gain">${t('{n} % taste fit with the headliner', { n: pct(g.overlap) })}${g.shared?.length ? t(', shared: {list}', { list: esc(g.shared.slice(0, 3).join(', ')) }) : ''}${g.differentiators?.length ? t('; adds {list}', { list: esc(g.differentiators.slice(0, 3).join(', ')) }) : ''} (<code>/v2/analysis/compare</code>).</span>` : '';
   const cb = d.crowd_brief || {};
   const names = (xs, n) => (xs || []).slice(0, n).map((x) => esc(x.name)).join(', ');
   const brief = [
-    cb.shows?.length ? `<p><span>Shows they watch:</span> ${names(cb.shows, 3)}</p>` : '',
-    cb.podcasts?.length ? `<p><span>Podcasts:</span> ${names(cb.podcasts, 3)}</p>` : '',
-    cb.themes?.length ? `<p><span>Local themes for the set and the crowd work:</span> ${names(cb.themes, 6)}</p>` : '',
+    cb.shows?.length ? `<p><span>${t('Shows they watch:')}</span> ${names(cb.shows, 3)}</p>` : '',
+    cb.podcasts?.length ? `<p><span>${t('Podcasts:')}</span> ${names(cb.podcasts, 3)}</p>` : '',
+    cb.themes?.length ? `<p><span>${t('Local themes for the set and the crowd work:')}</span> ${names(cb.themes, 6)}</p>` : '',
   ].join('');
   return [
-    pickBlock('Room', d.venue, d.venue?.picks),
-    pickBlock('Opener', d.opener, d.opener?.openers, gain),
-    pickBlock('Sponsor fit', d.sponsor, d.sponsor?.sponsors),
-    pickBlock('After-show spot', d.after_party, d.after_party?.picks),
-    `<div class="ui-list-section"><div class="ui-list__header"><strong>Crowd brief</strong></div><div class="ui-list brief">${brief || '<p><span>No crowd signal for this city.</span></p>'}</div>${evidence(cb.provenance)}</div>`,
-    `<p class="d-note">${S.book.meta.qloo === 'live' ? 'Qloo affinities describe aggregate audiences, never individuals.' : 'Synthetic data in mock mode. Affinities describe aggregate audiences, never individuals.'}</p>`,
+    pickBlock(t('Room'), d.venue, d.venue?.picks),
+    pickBlock(t('Opener'), d.opener, d.opener?.openers, gain),
+    pickBlock(t('Sponsor fit'), d.sponsor, d.sponsor?.sponsors),
+    pickBlock(t('After-show spot'), d.after_party, d.after_party?.picks),
+    `<div class="ui-list-section"><div class="ui-list__header"><strong>${t('Crowd brief')}</strong></div><div class="ui-list brief">${brief || `<p><span>${t('No crowd signal for this city.')}</span></p>`}</div>${evidence(cb.provenance)}</div>`,
+    `<p class="d-note">${S.book.meta.qloo === 'live' ? t('Qloo affinities describe aggregate audiences, never individuals.') : t('Synthetic data in mock mode. Affinities describe aggregate audiences, never individuals.')}</p>`,
   ].join('');
 }
 function buildPrintDossiers() {
   let head = $('#printTitle');
   if (!head) { head = document.createElement('div'); head.id = 'printTitle'; head.className = 'print-only'; $('#view-plan').prepend(head); }
-  head.innerHTML = `<h1 class="ui-large-title" style="margin:0">${esc(S.book.artist?.selected?.name || S.input.artist)}: tour plan</h1><p class="print-head">${esc(TYPE_LABEL[S.input.type] || 'Music')} · Tourbook · ${esc(new Date(S.book.createdAt).toLocaleDateString('en-US', { dateStyle: 'long' }))}${S.book.meta.qloo === 'live' ? '' : ' · synthetic data'}</p>`;
+  head.innerHTML = `<h1 class="ui-large-title" style="margin:0">${t('{name}: tour plan', { name: esc(S.book.artist?.selected?.name || S.input.artist) })}</h1><p class="print-head">${esc(t(TYPE_LABEL[S.input.type] || 'Music'))} · Tourbook · ${esc(new Date(S.book.createdAt).toLocaleDateString(LOCALE, { dateStyle: 'long' }))}${S.book.meta.qloo === 'live' ? '' : ` · ${t('synthetic data')}`}</p>`;
   let box = $('#printDossiers');
   if (!box) { box = document.createElement('div'); box.id = 'printDossiers'; box.className = 'print-only print-dossiers block'; $('.when-ready').append(box); }
-  box.innerHTML = '<h2 class="ui-title2">Date dossiers</h2><p class="print-head">Each pick cites a Qloo request; the full request log is in Tourbook’s Agent view.</p>' + (S.book.dates || []).filter((d) => d.market).map((d, i) => `<section><h3 class="ui-title3">Date ${i + 1}: ${esc(d.market.name)}</h3>${dossierHead(d.market)}${dossierBody(d)}</section>`).join('');
+  box.innerHTML = `<h2 class="ui-title2">${t('Date dossiers')}</h2><p class="print-head">${t('Each pick cites a Qloo request; the full request log is in Tourbook’s Agent view.')}</p>` + (S.book.dates || []).filter((d) => d.market).map((d, i) => `<section><h3 class="ui-title3">${t('Date {n}: {name}', { n: i + 1, name: esc(d.market.name) })}</h3>${dossierHead(d.market)}${dossierBody(d)}</section>`).join('');
   $$('#printDossiers details').forEach((x) => { x.open = true; });
 }
 
 // ---------------- voice briefing (browser speech, no paid TTS) ----------------
 function briefingText() {
   const b = S.book; const name = b.artist?.selected?.name || S.input?.artist;
-  const [d1, d2, d3] = b.dates || []; const t = b.markets.top;
-  const parts = [`Here's your tour, boss. ${name}.`];
-  if (t[0]) parts.push(`Lead with ${t[0].name}. Hidden Market Score ${t[0].hms}: taste rank ${t[0].affinityRank}, population rank only ${t[0].popRank}.`);
-  if (t[1] && t[2]) parts.push(`Then ${t[1].name} and ${t[2].name}.`);
-  if (d1?.venue?.picks?.[0]) parts.push(`In ${d1.market.name}, play ${d1.venue.picks[0].name}${d1.opener?.openers?.[0] ? `, open with ${d1.opener.openers[0].name}` : ''}${d1.sponsor?.sponsors?.[0] ? `, and pitch ${d1.sponsor.sponsors[0].name} as sponsor` : ''}.`);
-  if (d2?.after_party?.picks?.[0]) parts.push(`After the ${d2.market.name} show, the crowd goes to ${d2.after_party.picks[0].name}.`);
-  if (d3) parts.push(`${d3.market.name} closes the first run.`);
-  if (b.comparison) parts.push(`A model without taste data would have missed ${b.comparison.onlyQloo.length} of these stops.`);
-  if (b.momentum?.advice) parts.push(b.momentum.advice);
-  if (b.meta.qloo !== 'live') parts.push('Note: this is synthetic demo data.');
+  const [d1, d2, d3] = b.dates || []; const top = b.markets.top;
+  const parts = [t('Here\'s your tour, boss. {name}.', { name })];
+  if (top[0]) parts.push(t('Lead with {city}. Hidden Market Score {hms}: taste rank {taste}, population rank only {pop}.', { city: top[0].name, hms: top[0].hms, taste: top[0].affinityRank, pop: top[0].popRank }));
+  if (top[1] && top[2]) parts.push(t('Then {a} and {b}.', { a: top[1].name, b: top[2].name }));
+  if (d1?.venue?.picks?.[0]) parts.push(`${t('In {city}, play {venue}', { city: d1.market.name, venue: d1.venue.picks[0].name })}${d1.opener?.openers?.[0] ? t(', open with {name}', { name: d1.opener.openers[0].name }) : ''}${d1.sponsor?.sponsors?.[0] ? t(', and pitch {name} as sponsor', { name: d1.sponsor.sponsors[0].name }) : ''}.`);
+  if (d2?.after_party?.picks?.[0]) parts.push(t('After the {city} show, the crowd goes to {place}.', { city: d2.market.name, place: d2.after_party.picks[0].name }));
+  if (d3) parts.push(t('{city} closes the first run.', { city: d3.market.name }));
+  if (b.comparison) parts.push(t('A model without taste data would have missed {n} of these stops.', { n: b.comparison.onlyQloo.length }));
+  if (b.momentum?.advice) parts.push(t(b.momentum.advice));
+  if (b.meta.qloo !== 'live') parts.push(t('Note: this is synthetic demo data.'));
   return parts.join(' ');
 }
 let waveRaf;
+// The utterance always carries its language (en-US or fr-FR): without it, a French iPhone reads the English
+// briefing with its French system voice. getVoices() is often empty until 'voiceschanged' fires, so voices are
+// preloaded at boot and a click waits for them briefly (never more than VOICE_WAIT_MS) before speaking anyway.
+const VOICE_LANG = LANG === 'fr' ? 'fr-FR' : 'en-US';
+const VOICE_WAIT_MS = 600;
+let voiceToken = 0;
+function loadVoices(timeout = VOICE_WAIT_MS) {
+  const now = speechSynthesis.getVoices();
+  if (now.length) return Promise.resolve(now);
+  return new Promise((resolve) => {
+    const done = () => { clearTimeout(timer); speechSynthesis.removeEventListener?.('voiceschanged', done); resolve(speechSynthesis.getVoices()); };
+    const timer = setTimeout(done, timeout);
+    speechSynthesis.addEventListener?.('voiceschanged', done);
+  });
+}
+if ('speechSynthesis' in window) loadVoices(3000); // warm the list so a click usually speaks at once
+function pickVoice(voices) {
+  const norm = (x) => String(x.lang || '').replace('_', '-').toLowerCase();
+  const exact = VOICE_LANG.toLowerCase(); const base = exact.slice(0, 2);
+  const nice = LANG === 'fr' ? /Thomas|Amélie|Amelie|Audrey|Aurélie|Marie|Google|Natural|Premium|Enhanced/i : /Samantha|Daniel|Ava|Google|Natural|Premium/i;
+  const same = voices.filter((x) => norm(x) === exact);
+  const family = voices.filter((x) => norm(x) === base || norm(x).startsWith(`${base}-`));
+  const preferred = LANG === 'fr' ? family : family.filter((x) => /^en-(us|gb)$/.test(norm(x)));
+  return same.find((x) => nice.test(x.name)) || preferred.find((x) => nice.test(x.name)) || same[0] || family[0] || null;
+}
 function toggleVoice() {
   if (!('speechSynthesis' in window) || !S.book) return;
-  if (speechSynthesis.speaking) return stopVoice();
+  if (speechSynthesis.speaking || $('#voiceDock').dataset.state === 'thinking') return stopVoice();
   const text = briefingText();
-  const u = new SpeechSynthesisUtterance(text);
-  const voices = speechSynthesis.getVoices();
-  const v = voices.find((x) => /en-(US|GB)/.test(x.lang) && /Samantha|Daniel|Ava|Google|Natural|Premium/i.test(x.name)) || voices.find((x) => x.lang?.startsWith('en'));
-  if (v) u.voice = v;
-  u.rate = 1.02;
   const dock = $('#voiceDock'); const wave = $('#voiceWave'); const line = $('#voiceLine');
-  wave.innerHTML = Array.from({ length: 14 }, (_, i) => `<i style="--i:${i}"></i>`).join('');
-  const bars = [...wave.children]; const lv = bars.map(() => 0);
-  const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
-  const showAt = (ci) => {
-    let acc = 0;
-    for (const s of sentences) { if (ci < acc + s.length) { const k = ci - acc; line.innerHTML = `<span class="said">${esc(s.slice(0, k))}</span><span class="next">${esc(s.slice(k))}</span>`; return; } acc += s.length; }
+  dock.hidden = false; dock.dataset.state = 'thinking'; line.textContent = t('Preparing the briefing…');
+  $('#voiceBtn').setAttribute('aria-pressed', 'true'); $('#voiceBtn').setAttribute('aria-label', t('Stop the voice briefing'));
+  const token = ++voiceToken;
+  const speak = (voices) => {
+    if (token !== voiceToken) return; // stopped (or restarted) while the voices were loading
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = VOICE_LANG;
+    const v = pickVoice(voices);
+    if (v) u.voice = v;
+    u.rate = 1.02;
+    wave.innerHTML = Array.from({ length: 14 }, (_, i) => `<i style="--i:${i}"></i>`).join('');
+    const bars = [...wave.children]; const lv = bars.map(() => 0);
+    const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
+    const showAt = (ci) => {
+      let acc = 0;
+      for (const s of sentences) { if (ci < acc + s.length) { const k = ci - acc; line.innerHTML = `<span class="said">${esc(s.slice(0, k))}</span><span class="next">${esc(s.slice(k))}</span>`; return; } acc += s.length; }
+    };
+    u.onstart = () => { dock.dataset.state = 'speaking'; showAt(0); };
+    u.onboundary = (e) => { showAt(e.charIndex); bars.forEach((_, i) => { lv[i] = Math.max(lv[i], 0.35 + Math.random() * 0.65); }); };
+    u.onend = stopVoice; u.onerror = stopVoice;
+    const tick = () => { bars.forEach((b, i) => { lv[i] *= 0.9; b.style.setProperty('--l', lv[i].toFixed(3)); }); waveRaf = requestAnimationFrame(tick); };
+    speechSynthesis.cancel(); speechSynthesis.speak(u);
+    cancelAnimationFrame(waveRaf); if (!reduceMotion()) tick();
   };
-  u.onstart = () => { dock.dataset.state = 'speaking'; showAt(0); };
-  u.onboundary = (e) => { showAt(e.charIndex); bars.forEach((_, i) => { lv[i] = Math.max(lv[i], 0.35 + Math.random() * 0.65); }); };
-  u.onend = stopVoice; u.onerror = stopVoice;
-  const tick = () => { bars.forEach((b, i) => { lv[i] *= 0.9; b.style.setProperty('--l', lv[i].toFixed(3)); }); waveRaf = requestAnimationFrame(tick); };
-  dock.hidden = false; dock.dataset.state = 'thinking'; line.textContent = 'Preparing the briefing…';
-  $('#voiceBtn').setAttribute('aria-pressed', 'true'); $('#voiceBtn').setAttribute('aria-label', 'Stop the voice briefing');
-  speechSynthesis.cancel(); speechSynthesis.speak(u);
-  cancelAnimationFrame(waveRaf); if (!reduceMotion()) tick();
+  // Voices already known: speak inside the click (iOS wants the user gesture). Otherwise wait briefly for them.
+  const now = speechSynthesis.getVoices();
+  if (now.length) speak(now); else loadVoices().then(speak);
 }
 function stopVoice() {
+  voiceToken++;
   if ('speechSynthesis' in window) speechSynthesis.cancel();
   cancelAnimationFrame(waveRaf);
   $('#voiceDock').hidden = true; $('#voiceDock').dataset.state = 'idle';
-  $('#voiceBtn').setAttribute('aria-pressed', 'false'); $('#voiceBtn').setAttribute('aria-label', 'Play the voice briefing');
+  $('#voiceBtn').setAttribute('aria-pressed', 'false'); $('#voiceBtn').setAttribute('aria-label', t('Play the voice briefing'));
 }
 
 // ---------------- share ----------------
@@ -858,8 +929,8 @@ function shareParams(input = S.input) {
 }
 async function share() {
   const url = `${location.origin}${location.pathname}?${shareParams()}`;
-  try { await navigator.clipboard.writeText(url); toast({ title: 'Link copied', detail: 'Opening it replays this plan.', tone: 'ok' }); }
-  catch { toast({ title: 'Copy this link', detail: url, action: { label: 'Open', onClick: () => window.open(url, '_blank', 'noopener') } }); }
+  try { await navigator.clipboard.writeText(url); toast({ title: t('Link copied'), detail: t('Opening it replays this plan.'), tone: 'ok' }); }
+  catch { toast({ title: t('Copy this link'), detail: url, action: { label: t('Open'), onClick: () => window.open(url, '_blank', 'noopener') } }); }
 }
 
 // ---------------- room mode (venue side) ----------------
@@ -868,30 +939,30 @@ async function venueSearch() {
   if (S.venueBusy) return; // one request per click (UB-31)
   const hood = $('#vHood').value.trim();
   if (!hood) { $('#vHood').setAttribute('aria-invalid', 'true'); $('#vHoodErr').hidden = false; $('#vHood').focus(); return; }
-  S.venueBusy = true; $('#venueBtn').disabled = true; $('#venueBtn').textContent = 'Finding acts…';
+  S.venueBusy = true; $('#venueBtn').disabled = true; $('#venueBtn').textContent = t('Finding acts…');
   $$('#hoodChips [data-hood]').forEach((c) => c.setAttribute('aria-pressed', String(c.dataset.hood === hood)));
   const box = $('#venueResults');
-  box.innerHTML = `<div class="skel-rows" aria-label="Loading acts">${Array.from({ length: 6 }, (_, i) => `<div class="skel-row"><div class="ui-skeleton" style="width:${40 + ((i * 17) % 35)}%;height:15px"></div><div class="ui-skeleton" style="height:15px"></div><div class="ui-skeleton" style="width:${55 + ((i * 11) % 30)}%;height:11px"></div></div>`).join('')}</div>`;
+  box.innerHTML = `<div class="skel-rows" aria-label="${t('Loading acts')}">${Array.from({ length: 6 }, (_, i) => `<div class="skel-row"><div class="ui-skeleton" style="width:${40 + ((i * 17) % 35)}%;height:15px"></div><div class="ui-skeleton" style="height:15px"></div><div class="ui-skeleton" style="width:${55 + ((i * 11) % 30)}%;height:11px"></div></div>`).join('')}</div>`;
   try {
     const res = await fetch(`/api/venue?neighborhood=${encodeURIComponent(hood)}&popMax=${$('#vPop').value}`);
     const r = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
     if (!res.ok || r.error) throw Object.assign(new Error(r.error || `HTTP ${res.status}`), { status: res.status });
     const mock = S.cfg.qloo.mode !== 'live';
     const c = r.calls?.[0];
-    const cap = Number($('#vPop').value).toFixed(2);
+    const popCap = Number($('#vPop').value).toFixed(2);
     box.innerHTML = r.acts.length
-      ? `<div class="ui-list-section"><div class="ui-list__header"><strong>${r.acts.length} acts for ${esc(hood)}</strong><span>Popularity under ${cap}</span></div>
-        <div class="ui-table-wrap"><table class="ui-table ui-table--stack acts"><thead><tr><th class="is-num" data-slot="hide-compact">#</th><th>Act</th><th>Local fit</th><th>Popularity</th></tr></thead><tbody>${
-          r.acts.map((a, i) => `<tr><td class="is-num is-muted" data-slot="hide-compact">${i + 1}</td><td data-slot="title"><span class="is-strong">${esc(a.name)}</span>${actDesc(a)}</td><td data-slot="trailing"><div class="meter"><div class="track"><div class="fill" style="width:${pct(a.affinity)}%"></div></div><b>${pct(a.affinity)}</b><span class="only-compact ui-footnote ui-secondary">fit</span></div></td><td data-slot="meta"><div class="meter"><span class="only-compact">Popularity</span><div class="track"><div class="fill is-pop" style="width:${pct(a.popularity)}%"></div></div><b>${pct(a.popularity)}</b></div></td></tr>`).join('')
+      ? `<div class="ui-list-section"><div class="ui-list__header"><strong>${t('{n} acts for {hood}', { n: r.acts.length, hood: esc(hood) })}</strong><span>${t('Popularity under {cap}', { cap: dec(popCap) })}</span></div>
+        <div class="ui-table-wrap"><table class="ui-table ui-table--stack acts"><thead><tr><th class="is-num" data-slot="hide-compact">#</th><th>${t('Act')}</th><th>${t('Local fit')}</th><th>${t('Popularity')}</th></tr></thead><tbody>${
+          r.acts.map((a, i) => `<tr><td class="is-num is-muted" data-slot="hide-compact">${i + 1}</td><td data-slot="title"><span class="is-strong">${esc(a.name)}</span>${actDesc(a)}</td><td data-slot="trailing"><div class="meter"><div class="track"><div class="fill" style="width:${pct(a.affinity)}%"></div></div><b>${pct(a.affinity)}</b><span class="only-compact ui-footnote ui-secondary">${t('fit')}</span></div></td><td data-slot="meta"><div class="meter"><span class="only-compact">${t('Popularity')}</span><div class="track"><div class="fill is-pop" style="width:${pct(a.popularity)}%"></div></div><b>${pct(a.popularity)}</b></div></td></tr>`).join('')
         }</tbody></table></div>
-        <p class="ui-list__footer">${mock ? 'Synthetic data. ' : ''}Local fit is Qloo affinity for the people around ${esc(hood)}${c ? `: <code>GET ${esc(c.path)} · ${esc(Object.entries(c.params).map(([k, v]) => `${k}=${v}`).join(' & '))}</code>` : '.'}</p></div>`
-      : `<div class="ui-empty"><span class="ui-empty__icon">${icon('i-room')}</span><h3>No acts under ${cap} popularity here</h3><p>Raise the popularity cap, or try a wider area such as the city name.</p></div>`;
+        <p class="ui-list__footer">${mock ? `${t('Synthetic data.')} ` : ''}${t('Local fit is Qloo affinity for the people around {hood}', { hood: esc(hood) })}${c ? `${LANG === 'fr' ? '\u00a0:' : ':'} <code>GET ${esc(c.path)} · ${esc(Object.entries(c.params).map(([k, v]) => `${k}=${v}`).join(' & '))}</code>` : '.'}</p></div>`
+      : `<div class="ui-empty"><span class="ui-empty__icon">${icon('i-room')}</span><h3>${t('No acts under {cap} popularity here', { cap: dec(popCap) })}</h3><p>${t('Raise the popularity cap, or try a wider area such as the city name.')}</p></div>`;
   } catch (e) {
     const unknown = e.status === 400;
-    box.innerHTML = `<div class="ui-banner ui-banner--${unknown ? 'warn' : 'critical'}">${icon('i-alert')}<div style="flex:1"><strong>${unknown ? `Qloo could not place “${esc(hood)}”` : 'Room mode is unavailable right now'}</strong><p>${unknown ? 'Add the city, for example “Wicker Park, Chicago”.' : `${esc(e.message)}. Try again in a moment.`}</p></div></div>`;
+    box.innerHTML = `<div class="ui-banner ui-banner--${unknown ? 'warn' : 'critical'}">${icon('i-alert')}<div style="flex:1"><strong>${unknown ? t('Qloo could not place “{hood}”', { hood: esc(hood) }) : t('Room mode is unavailable right now')}</strong><p>${unknown ? t('Add the city, for example “Wicker Park, Chicago”.') : t('{error}. Try again in a moment.', { error: esc(e.message) })}</p></div></div>`;
   } finally {
-    S.venueBusy = false; $('#venueBtn').disabled = false; $('#venueBtn').textContent = 'Find acts';
+    S.venueBusy = false; $('#venueBtn').disabled = false; $('#venueBtn').textContent = t('Find acts');
   }
 }
 
-window.Tourbook = { S, UI }; // handy for debugging in the console
+window.Tourbook = { S, UI, briefingText }; // handy for debugging in the console

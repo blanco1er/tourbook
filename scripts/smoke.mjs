@@ -84,6 +84,18 @@ try {
   const c1 = await (await fetch(`${base}/api/plan/stream?${q}&rid=${rid}-new`)).text();
   ok(runIdOf(c1) !== runIdOf(a1), 'a new request id (deliberate re-run) starts a fresh plan');
   ok(js.includes('S.running') && js.includes('rid'), 'UI: run button locked while running and a request id sent per click');
+
+  // ---- language: English by default, French on demand (UI dictionary + agent text) ----
+  const i18n = await fetch(`${base}/i18n.js`);
+  const i18nJs = await i18n.text();
+  ok(i18n.ok && i18nJs.includes("'Room mode': 'Mode salle'") && html.includes('src="/i18n.js"') && html.includes('data-lang="fr"'), 'i18n: /i18n.js served, loaded by the page, FR / EN switch present');
+  const planFr = await (await fetch(`${base}/api/plan`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ artist: demo.artist, proxies: demo.proxies, lang: 'fr' }) })).json();
+  ok(/^Le marché le plus fort de /.test(planFr.summary || '') && planFr.summary.includes('Score de marché caché'), `i18n: French summary in mock mode ("${(planFr.summary || '').slice(0, 60)}…")`);
+  ok(planFr.trace.filter((x) => x.type === 'thought').every((x) => !/^Resolving|^Ranking|^Profiling|^Checking/.test(x.text)), 'i18n: French run narrates in French');
+  ok(planFr.runId !== plan.runId && JSON.stringify(planFr.markets.top.map((m) => m.id)) === JSON.stringify(plan.markets.top.map((m) => m.id)), 'i18n: FR run is a distinct run with the same facts (same top markets)');
+  ok(/^.+'s strongest market is .+ \(Hidden Market Score \d+\)\./.test(plan.summary) && plan.summary.endsWith('Each date below comes with a room, an opener, a sponsor fit and a crowd brief, all traceable to Qloo calls.'), 'i18n: English summary unchanged');
+  const badLang = await (await fetch(`${base}/api/plan`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ artist: demo.artist, proxies: demo.proxies, lang: 'de' }) })).json();
+  ok(badLang.summary === plan.summary || badLang.summary?.startsWith(`${demo.artist}'s strongest market`), 'i18n: unknown lang falls back to English');
 } catch (e) {
   console.error(e); failed++;
 } finally {

@@ -55,7 +55,8 @@ function startPlan(req, input) {
 const parseInput = (src) => {
   const proxies = Array.isArray(src.proxies) ? src.proxies : String(src.proxies || '').split(',');
   const type = ['artist', 'person', 'podcast'].includes(src.type) ? src.type : 'artist';
-  return { artist: String(src.artist || '').trim().slice(0, 120), proxies: proxies.map((p) => String(p).trim().slice(0, 120)).filter(Boolean).slice(0, 3), type };
+  const lang = src.lang === 'fr' ? 'fr' : 'en'; // UI language of the agent's text (thoughts, summary); tools and Qloo calls are unchanged
+  return { artist: String(src.artist || '').trim().slice(0, 120), proxies: proxies.map((p) => String(p).trim().slice(0, 120)).filter(Boolean).slice(0, 3), type, lang };
 };
 const ids = (s) => String(s || '').split(',').map((x) => x.trim()).filter(Boolean).slice(0, 4);
 const wrap = (fn) => (req, res) => fn(req, res).catch((e) => res.status(e.status && e.status < 500 ? e.status : 502).json({ error: e.message, code: e.code, details: e.attempts || e.details }));

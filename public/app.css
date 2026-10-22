@@ -58,6 +58,13 @@ code { font-family: var(--font-mono); font-size: 0.9em; letter-spacing: 0; }
 .ui-tabs-top a[aria-current="page"] { color: light-dark(#0055B3, #5CB8FF); }
 #planTools[hidden] { display: none; }
 #voiceBtn[aria-pressed="true"] { color: var(--accent-text); background: var(--accent-tint); }
+/* Language switch (EN / FR): a glass pill in the toolbar at every width; 44 pt targets on touch (ui-icon-button) */
+.lang-switch .ui-icon-button { font: var(--weight-semibold) 13px/1 var(--font-sans); letter-spacing: 0.02em; }
+.lang-switch .ui-icon-button[aria-pressed="true"] { color: var(--accent-text); background: var(--accent-tint); cursor: default; }
+@media (max-width: 699px) {
+  /* Phone: only the other language's button (one 44 pt target), so the large title keeps its room */
+  .lang-switch [aria-pressed="true"] { display: none; }
+}
 @media (max-width: 699px) {
   .ui-toolbar { padding-top: calc(10px + env(safe-area-inset-top)); }
   .tb-title h1 { font-size: var(--text-large-title); letter-spacing: var(--tracking-large-title); }
@@ -168,6 +175,14 @@ code { font-family: var(--font-mono); font-size: 0.9em; letter-spacing: 0; }
   .map-switch { top: 12px; }
   .map-controls { top: 12px; }
 }
+
+/* Full-screen map: our own overlay (iPhone Safari has no Fullscreen API for elements). One-finger pan inside. */
+.map.is-expanded { position: fixed; inset: 0; z-index: 900; height: auto; margin: 0 !important; }
+.map.is-expanded .map-switch, .map.is-expanded .map-legend { left: max(var(--page-pad), env(safe-area-inset-left)); }
+.map.is-expanded .map-switch, .map.is-expanded .map-controls { top: max(16px, calc(env(safe-area-inset-top) + 8px)); }
+.map.is-expanded .map-legend { bottom: max(22px, calc(env(safe-area-inset-bottom) + 12px)); }
+.map.is-expanded .map-zoom { display: grid; }
+html.map-open, html.map-open body { overflow: hidden; }
 
 /* Markers: 44 px hit area, visible dot inside */
 .mk { width: 44px; height: 44px; display: grid; place-items: center; cursor: pointer; }

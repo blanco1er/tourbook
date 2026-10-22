@@ -47,7 +47,8 @@ export function createRunRegistry({ ttlMs = 10 * 60 * 1000, max = 500 } = {}) {
 
 /** Stable key for a plan request: the client's request id if any, else caller + normalised input. */
 export function runKey({ rid, ip, input }) {
-  if (rid && /^[A-Za-z0-9-]{8,64}$/.test(rid)) return `rid:${rid}`;
+  const lang = input.lang === 'fr' ? 'fr' : 'en'; // an English and a French run of the same act are distinct runs
+  if (rid && /^[A-Za-z0-9-]{8,64}$/.test(rid)) return `rid:${rid}|${lang}`;
   const norm = (s) => String(s || '').trim().toLowerCase();
-  return `in:${ip}|${input.type}|${norm(input.artist)}|${input.proxies.map(norm).join(',')}`;
+  return `in:${ip}|${lang}|${input.type}|${norm(input.artist)}|${input.proxies.map(norm).join(',')}`;
 }

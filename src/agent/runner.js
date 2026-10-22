@@ -24,11 +24,16 @@ Speed: call independent tools in the same turn (parallel tool calls), e.g. all r
 audience_profile with momentum, and the five dossier tools of all three markets together.
 Rules: use only IDs returned by tools; never invent venues, brands or numbers; Qloo affinities describe aggregate
 audiences, never individuals; if a tool returns an error, try the next step and mention the gap.`;
+// Added only when the user reads Tourbook in French: tool names, arguments and Qloo requests stay in English.
+const SYSTEM_FR = `
+Language: the user reads Tourbook in French. Write your short progress notes and the final summary in natural,
+professional French (use "vous"). Keep tool names, IDs, entity names (artists, venues, brands, cities) unchanged.`;
 
 export async function runAgent({ input, qloo, llm, emit = () => {} }) {
   const runId = randomUUID();
   const state = { input, resolved: [], markets: null, audience: null, momentum: null, dates: {}, baseline: null };
   const ctx = { qloo, llm, state };
+  const fr = input.lang === 'fr';
   const t0 = Date.now();
   let calls = 0;
   const tracer = { emit: (type, data) => { if (type === 'call' && data.status === 'start') calls++; emit(type, data); } };
@@ -36,8 +41,8 @@ export async function runAgent({ input, qloo, llm, emit = () => {} }) {
   return traceStore.run(tracer, async () => {
     emit('plan', { runId, steps: PLAN_STEPS, mode: { qloo: qloo.mode, llm: llm.kind } });
     const messages = [
-      { role: 'system', content: SYSTEM },
-      { role: 'user', content: `Plan a tour.\nINPUT: ${JSON.stringify(input)}` },
+      { role: 'system', content: fr ? SYSTEM + SYSTEM_FR : SYSTEM },
+      { role: 'user', content: `Plan a tour.\nINPUT: ${JSON.stringify(fr ? input : (({ lang, ...rest }) => rest)(input))}` },
     ];
     let summary = '';
     let planner = llm;
@@ -49,7 +54,7 @@ export async function runAgent({ input, qloo, llm, emit = () => {} }) {
         // A model outage or quota error must not cost the user the plan: the scripted planner reads the
         // same conversation and carries on from the tool calls already made.
         if (planner.kind === 'mock') throw err;
-        emit('thought', { text: `The model is unavailable (${err.message}); the scripted planner continues from here.` });
+        emit('thought', { text: fr ? `Le modèle est indisponible (${err.message}) ; le planificateur scripté prend le relais.` : `The model is unavailable (${err.message}); the scripted planner continues from here.` });
         planner = new MockLLM();
         out = await planner.chat({ messages, tools: TOOL_DEFS });
       }
@@ -82,7 +87,7 @@ export async function runAgent({ input, qloo, llm, emit = () => {} }) {
       for (const m of state.markets.top.slice(0, 3)) {
         const d = state.dates[m.id];
         if (!d || !d.venue || !d.opener || !d.sponsor || !d.after_party || !d.crowd_brief) {
-          emit('thought', { text: `Completing the ${m.name} dossier.` });
+          emit('thought', { text: fr ? `Finalisation du dossier de ${m.name}.` : `Completing the ${m.name} dossier.` });
           const ids = state.resolved.map((r) => r.selected.id).slice(0, 4);
           const full = await cityDossier(qloo, { entityIds: ids, entityType: state.resolved[0]?.selected?.type, cityId: m.id });
           state.dates[m.id] = { city: d?.city || full.city, venue: d?.venue || full.venue, opener: d?.opener || full.opener, sponsor: d?.sponsor || full.sponsor, after_party: d?.after_party || full.after, crowd_brief: d?.crowd_brief || full.crowd };

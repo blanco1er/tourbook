@@ -284,12 +284,19 @@ export function toast({ title, detail = "", tone = "info", action, duration = 42
   const fromY = innerWidth < 700 ? -24 : 24;
   spring(el, [{ opacity: 0, transform: `translateY(${fromY}px) scale(0.94)` }, { opacity: 1, transform: "none" }], { preset: "bouncy", fill: "none" });
   let timer = setTimeout(dismiss, duration);
-  el.addEventListener("pointerenter", () => clearTimeout(timer));
-  el.addEventListener("pointerleave", () => (timer = setTimeout(dismiss, 1800)));
+  // Hover pauses the timer for a mouse only: on iPhone a touch fires pointerenter without a matching
+  // pointerleave, which left the toast on screen for good. A tap dismisses it.
+  el.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse") clearTimeout(timer); });
+  el.addEventListener("pointerleave", (e) => { if (e.pointerType === "mouse") timer = setTimeout(dismiss, 1800); });
+  el.addEventListener("click", (e) => { if (!e.target.closest("button")) dismiss(); });
+  let gone = false;
   function dismiss() {
+    if (gone) return; gone = true;
     clearTimeout(timer);
-    const a = spring(el, [{ opacity: 1, transform: "none" }, { opacity: 0, transform: `translateY(${fromY / 2}px) scale(0.96)` }], { preset: "quick" });
-    (a ? a.finished : Promise.resolve()).then(() => el.remove(), () => el.remove());
+    const remove = () => el.remove();
+    const a = spring(el, [{ opacity: 1, transform: "none" }, { opacity: 0, transform: `translateY(${fromY / 2}px) scale(0.96)` }], { preset: "quick", fill: "forwards" });
+    (a ? a.finished : Promise.resolve()).then(remove, remove);
+    setTimeout(remove, 700); // never rely on the animation alone to remove it
   }
   return { dismiss };
 }
