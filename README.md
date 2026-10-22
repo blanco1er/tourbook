@@ -6,7 +6,7 @@ Tourbook is an AI advance team for touring artists (musicians, comedians, live p
 date: the room, an opener that widens the audience, a sponsor fit, an after-show spot and a crowd brief.
 A reverse **room mode** lets a venue type its neighbourhood and get acts worth booking.
 
-> Built for the Qloo Agentic Hackathon 2026. Live demo: **https://tourbook.onrender.com** (real Qloo data, no sign-up).
+> Built for the Qloo Agentic Hackathon 2026. Live demo: **https://tourbook-q2d9.onrender.com** (real Qloo data, no sign-up).
 
 ## Try it in 20 seconds
 
