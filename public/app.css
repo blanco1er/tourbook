@@ -81,7 +81,7 @@ code { font-family: var(--font-mono); font-size: 0.9em; letter-spacing: 0; }
   .ui-toolbar:not(.is-scrolled) { flex-wrap: wrap; justify-content: flex-end; row-gap: 4px; }
   .ui-toolbar:not(.is-scrolled) .tb-title { order: 9; flex: 1 0 100%; }
   /* phone: a long lead city wraps ("Salt Lake City", "San Francisco") instead of "San Francis…" */
-  .ui-stat__value { white-space: normal; overflow-wrap: anywhere; line-height: 1.05; }
+  .ui-stats .ui-stat__value { white-space: normal; overflow-wrap: anywhere; line-height: 1.05; }
 }
 
 /* ---------- Page ---------- */
