@@ -239,6 +239,7 @@ function run(input, { rid, keepView = false, demoIndex } = {}) {
     if (d.status === 'start') {
       S.tools++;
       if (d.stage) setStep(d.stage);
+      const t = $('#thought'); if (t) t.textContent = toolPhrase(d);
       liveLine('tool', `<b>${esc(d.name)}</b><span>${esc(argSummary(d.args))}</span>`);
       agentLine({ kind: 'tool', d });
     }
@@ -317,8 +318,27 @@ function showPlanError(title, msg, retry) {
 function argSummary(a = {}) {
   return Object.entries(a).map(([k, v]) => `${k}: ${Array.isArray(v) ? `[${v.length}]` : typeof v === 'string' ? `"${v.length > 22 ? `${v.slice(0, 21)}…` : v}"` : v}`).join(', ');
 }
+/** Plain words for the line under the title: the model may call tools without narrating them. */
+function toolPhrase(d) {
+  const a = d.args || {}; const city = S.cities?.[a.city_id]?.name;
+  const kind = { venue: 'the room', after_party: 'an after-show spot', crowd_brief: 'the crowd brief' }[a.kind];
+  return ({
+    resolve_entity: `Finding “${a.name}” in Qloo’s taste graph.`,
+    rank_markets: 'Ranking 34 metros by taste against population.',
+    audience_profile: 'Profiling the audience (aggregate segments only).',
+    momentum: 'Checking six months of momentum.',
+    local_picks: city && kind ? `${city}: picking ${kind}.` : 'Picking local spots.',
+    find_openers: city ? `${city}: finding an opener with the same taste.` : 'Finding openers.',
+    sponsor_fit: city ? `${city}: matching brands this crowd loves.` : 'Matching sponsors.',
+    llm_only_baseline: 'Asking the same model for a plan without Qloo, for the comparison.',
+  })[d.name] || `Running ${d.name}.`;
+}
+
 function setStep(stage) {
   const all = $$('#steps li').map((li) => li.dataset.step); const k = all.indexOf(stage);
+  // Parallel tool calls can start a later stage before an earlier one: the bar never moves backwards.
+  const cur = all.indexOf($$('#steps li').find((li) => li.className === 'is-active')?.dataset.step);
+  if (k < cur) return;
   if (k >= 0) $('#stepLabel').textContent = `Step ${k + 1} of ${all.length}: ${stage}`;
   let passed = true;
   $$('#steps li').forEach((li) => {
