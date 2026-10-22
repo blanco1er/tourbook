@@ -104,13 +104,14 @@ export const TOOLS = {
   },
   momentum: {
     stage: 'Timing',
-    def: fn('momentum', 'Weekly popularity trend of the headliner (/v2/trending) to decide venue sizes.', {
+    def: fn('momentum', 'Weekly popularity trend of the headliner over the last six months (/v2/trending) to decide venue sizes.', {
       entity_id: { type: 'string' },
-      start_date: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
-      end_date: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
     }),
-    async run({ entity_id, start_date, end_date }, { qloo, state }) {
-      const full = await momentum(qloo, { entityId: entity_id, entityType: TYPE_URN_FROM(state.resolved[0]?.selected?.type), startDate: start_date, endDate: end_date });
+    async run({ entity_id }, { qloo, state }) {
+      // The window is set here, not by the model: models do not know today's date (one asked for 2024).
+      const end = new Date(); const start = new Date(end); start.setDate(end.getDate() - 182);
+      const iso = (d) => d.toISOString().slice(0, 10);
+      const full = await momentum(qloo, { entityId: entity_id, entityType: TYPE_URN_FROM(state.resolved[0]?.selected?.type), startDate: iso(start), endDate: iso(end) });
       state.momentum = full;
       return { full, forModel: { verdict: full.verdict, delta: full.delta, advice: full.advice } };
     },

@@ -6,9 +6,14 @@ export async function venueMode(qloo, { neighborhood, popularityMax = 0.7, entit
     'filter.type': entityType,
     'signal.location.query': neighborhood, // 400 if Qloo cannot resolve the locality
     'filter.popularity.max': popularityMax, // emerging acts the room can actually afford
-    take,
+    // Live data: without it, a sports team, a painter and a record label came back as "artists".
+    ...(entityType === 'urn:entity:artist' ? { 'filter.external.exists': 'spotify' } : {}),
+    take: take + 6,
   });
-  const acts = (body?.results?.entities || []).map((e) => ({
+  const acts = (body?.results?.entities || [])
+    .filter((e) => /[A-Za-z]/.test(e.name || '')) // names with no Latin letter are acts a US room can't book
+    .slice(0, take)
+    .map((e) => ({
     id: e.entity_id, name: e.name, type: e.subtype, popularity: e.popularity, affinity: e?.query?.affinity,
     description: e?.properties?.short_description,
   }));

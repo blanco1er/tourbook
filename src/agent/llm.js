@@ -87,8 +87,7 @@ export class MockLLM {
     if (!done('rank_markets')) return { name: 'rank_markets', args: { entity_ids: ids.slice(0, 4), top_n: 8 }, thought: say('Ranking 34 metros by taste affinity versus population.', 'Classement des 34 métropoles selon l’affinité de goût face à la population.') };
     if (!done('audience_profile')) return { name: 'audience_profile', args: { entity_id: ids[0] }, thought: say('Profiling who this audience is (aggregate segments only).', 'Profil de ce public (segments agrégés uniquement).') };
     if (!done('momentum')) {
-      const end = new Date(); const start = new Date(end); start.setDate(end.getDate() - 182);
-      return { name: 'momentum', args: { entity_id: ids[0], start_date: iso(start), end_date: iso(end) }, thought: say('Checking six months of momentum to size the rooms.', 'Analyse de six mois de tendance pour dimensionner les salles.') };
+      return { name: 'momentum', args: { entity_id: ids[0] }, thought: say('Checking six months of momentum to size the rooms.', 'Analyse de six mois de tendance pour dimensionner les salles.') };
     }
     const top = calls.find((c) => c.name === 'rank_markets')?.result?.top || [];
     for (const m of top.slice(0, 3)) {
