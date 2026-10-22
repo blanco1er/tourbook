@@ -11,7 +11,7 @@ export async function venueMode(qloo, { neighborhood, popularityMax = 0.7, entit
     take: take + 6,
   });
   const acts = (body?.results?.entities || [])
-    .filter((e) => /[A-Za-z]/.test(e.name || '')) // names with no Latin letter are acts a US room can't book
+    .filter((e) => /[A-Za-z]/.test(e.name || '') && !/[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]/.test(e.name || '')) // CJK-script acts: not bookable by a US room
     .slice(0, take)
     .map((e) => ({
     id: e.entity_id, name: e.name, type: e.subtype, popularity: e.popularity, affinity: e?.query?.affinity,
