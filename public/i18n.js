@@ -34,8 +34,8 @@
     'Save the plan as PDF': 'Enregistrer le plan en PDF',
     'Save as PDF': 'Enregistrer en PDF',
     'New plan': 'Nouveau plan',
-    'Population lies, taste doesn\'t.': 'La population ment, pas le goût.',
-    'A mid-size act usually tours New York, Los Angeles and Chicago. Tourbook\'s agent asks Qloo where the act\'s fans actually over-index, then preps every date with its evidence.':
+    'Population lies, taste doesn’t.': 'La population ment, pas le goût.',
+    'A mid-size act usually tours New York, Los Angeles and Chicago. Tourbook’s agent asks Qloo where the act’s fans actually over-index, then preps every date with its evidence.':
       'Un artiste de taille moyenne tourne d’habitude à New York, Los Angeles et Chicago. L’agent de Tourbook demande à Qloo où ses fans sont vraiment surreprésentés, puis prépare chaque date avec ses preuves.',
     'Run the demo': 'Lancer la démo',
     'Plan your own act': 'Planifier votre tournée',
