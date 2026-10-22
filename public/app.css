@@ -69,6 +69,7 @@ code { font-family: var(--font-mono); font-size: 0.9em; letter-spacing: 0; }
 @media (max-width: 699px) {
   .ui-toolbar { padding-top: calc(10px + env(safe-area-inset-top)); }
   .tb-title h1 { font-size: var(--text-large-title); letter-spacing: var(--tracking-large-title); }
+  .tb-title p { white-space: normal; } /* phone: the subtitle wraps under the buttons instead of ending in “…” */
   .ui-toolbar.is-scrolled .tb-title h1 { font: var(--weight-semibold) var(--text-headline)/1.3 var(--font-sans); letter-spacing: var(--tracking-body); }
   .ui-toolbar.is-scrolled .tb-title p { display: none; }
 }
