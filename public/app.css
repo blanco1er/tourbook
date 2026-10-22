@@ -15,10 +15,11 @@
 @media (max-width: 999px) { :root { --page-pad: var(--margin-regular); --map-h: 400px; } }
 @media (max-width: 699px) { :root { --page-pad: var(--margin-compact); --map-h: 360px; } }
 
-/* No long-press text selection on controls (iOS) */
-button, [role="button"], .ui-nav-item, .ui-tabbar__item, .ui-tabs-top a, .ui-segmented label, summary, .mk {
+/* App, not a page: no long-press selection or copy bubble anywhere (iOS), except where you type */
+body, button, [role="button"], .ui-nav-item, .ui-tabbar__item, .ui-tabs-top a, .ui-segmented label, summary, .mk {
   -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
 }
+input, textarea, [contenteditable="true"] { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
 code { font-family: var(--font-mono); font-size: 0.9em; letter-spacing: 0; }
 
 .skip { position: fixed; z-index: 100; left: 12px; top: 12px; display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px;
@@ -62,8 +63,8 @@ code { font-family: var(--font-mono); font-size: 0.9em; letter-spacing: 0; }
 .lang-switch .ui-icon-button { font: var(--weight-semibold) 13px/1 var(--font-sans); letter-spacing: 0.02em; }
 .lang-switch .ui-icon-button[aria-pressed="true"] { color: var(--accent-text); background: var(--accent-tint); cursor: default; }
 @media (max-width: 699px) {
-  /* Phone: only the other language's button (one 44 pt target), so the large title keeps its room */
-  .lang-switch [aria-pressed="true"] { display: none; }
+  /* Phone: both languages stay visible ("EN | FR", current one highlighted): a lone "FR" read as a label, not a choice */
+  .lang-switch .ui-icon-button { width: 40px; min-width: 40px; }
 }
 @media (max-width: 699px) {
   .ui-toolbar { padding-top: calc(10px + env(safe-area-inset-top)); }
