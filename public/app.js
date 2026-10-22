@@ -100,7 +100,11 @@ function bindUi() {
   $('#voiceBtn').addEventListener('click', toggleVoice);
   $('#voiceStop').addEventListener('click', stopVoice);
   $('#shareBtn').addEventListener('click', share);
-  $('#printBtn').addEventListener('click', () => { buildPrintDossiers(); window.print(); });
+  $('#printBtn').addEventListener('click', () => {
+    // Phones: window.print() does nothing in in-app browsers, so the app builds the PDF and opens the share sheet.
+    if (matchMedia('(pointer: coarse)').matches) return savePlanPdf();
+    buildPrintDossiers(); window.print();
+  });
   $('#dossierNext').addEventListener('click', nextDossier);
   $('#sheet-dossier').addEventListener('close', () => { S.dossierId = null; });
   $('#zoomIn').addEventListener('click', () => S.map?.zoomIn());
@@ -837,6 +841,61 @@ function buildPrintDossiers() {
   if (!box) { box = document.createElement('div'); box.id = 'printDossiers'; box.className = 'print-only print-dossiers block'; $('.when-ready').append(box); }
   box.innerHTML = `<h2 class="ui-title2">${t('Date dossiers')}</h2><p class="print-head">${t('Each pick cites a Qloo request; the full request log is in Tourbook’s Agent view.')}</p>` + (S.book.dates || []).filter((d) => d.market).map((d, i) => `<section><h3 class="ui-title3">${t('Date {n}: {name}', { n: i + 1, name: esc(d.market.name) })}</h3>${dossierHead(d.market)}${dossierBody(d)}</section>`).join('');
   $$('#printDossiers details').forEach((x) => { x.open = true; });
+}
+
+// ---------------- PDF on phones (jsPDF, loaded on demand) ----------------
+function loadScript(src) {
+  return new Promise((ok, ko) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => ko(new Error('script')); document.head.append(s); });
+}
+const COLON = LANG === 'fr' ? '\u00A0: ' : ': '; // French puts a no-break space before a colon
+async function savePlanPdf() {
+  const b = S.book; if (!b) return;
+  const btn = $('#printBtn'); btn.setAttribute('aria-busy', 'true');
+  try {
+    if (!window.jspdf) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+    const doc = new window.jspdf.jsPDF({ unit: 'pt', format: 'a4' });
+    const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), M = 48;
+    let y = M;
+    const clean = (s) => String(s ?? '').replace(/[^\u0000-\u024F\u2018-\u201E\u2013\u2014\u2026\u00B7]/g, '');
+    const line = (text, { size = 11, bold = false, color = [20, 20, 22], gap = 4 } = {}) => {
+      doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.setFontSize(size); doc.setTextColor(...color);
+      for (const l of doc.splitTextToSize(clean(text), W - 2 * M)) {
+        if (y + size > H - M) { doc.addPage(); y = M; }
+        doc.text(l, M, y + size); y += size * 1.35;
+      }
+      y += gap;
+    };
+    const name = b.artist?.selected?.name || S.input.artist;
+    line(t('{name}: tour plan', { name }), { size: 22, bold: true });
+    line(`${t(TYPE_LABEL[S.input.type] || 'Music')} · Tourbook · ${new Date(b.createdAt).toLocaleDateString(LOCALE, { dateStyle: 'long' })}`, { size: 10, color: [110, 110, 118], gap: 12 });
+    if (b.summary) line(b.summary, { size: 11, gap: 14 });
+    line(t('Markets ranked by Hidden Market Score'), { size: 14, bold: true });
+    (b.markets?.top || []).forEach((m, i) => line(`${i + 1}. ${m.name}, ${m.state} · HMS ${m.hms} · ${t('Taste #{taste}, population #{pop}', { taste: m.affinityRank, pop: m.popRank })}`, { size: 10.5, gap: 1 }));
+    y += 12;
+    (b.dates || []).filter((d) => d.market).forEach((d, i) => {
+      line(t('Date {n}: {name}', { n: i + 1, name: `${d.market.name}, ${d.market.state}` }), { size: 14, bold: true });
+      const pick = (label, x, extra = '') => { if (x?.name) line(`${t(label)}${COLON}${x.name}${extra}`, { size: 10.5, gap: 1 }); };
+      pick('Room', d.venue?.picks?.[0]);
+      const g = d.opener?.gain?.overlap;
+      pick('Opener', d.opener?.openers?.[0], g != null ? ` · ${t('{n} % taste fit', { n: pct(g) })}` : '');
+      pick('Sponsor', d.sponsor?.sponsors?.[0]);
+      pick('After-show', d.after_party?.picks?.[0]);
+      const themes = (d.crowd_brief?.themes || []).slice(0, 5).map((x) => x.name).join(', ');
+      if (themes) line(`${t('Crowd brief')}${COLON}${themes}`, { size: 10.5, gap: 1 });
+      y += 10;
+    });
+    if (b.comparison) line(t('A model without taste data would have missed {n} of these stops.', { n: b.comparison.onlyQloo.length }), { size: 10.5, gap: 10 });
+    line(t('Source: Qloo Insights API. Aggregate taste affinities, never individuals.'), { size: 9, color: [110, 110, 118] });
+    const file = new File([doc.output('blob')], `Tourbook - ${clean(name)}.pdf`, { type: 'application/pdf' });
+    if (navigator.canShare?.({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: file.name }); } catch (e) { if (e?.name !== 'AbortError') throw e; }
+    } else {
+      const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = file.name; document.body.append(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    }
+  } catch {
+    toast({ title: t('The PDF could not be created'), detail: t('Check the connection, then try again.'), tone: 'critical' });
+  } finally { btn.removeAttribute('aria-busy'); }
 }
 
 // ---------------- voice briefing (browser speech, no paid TTS) ----------------

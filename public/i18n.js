@@ -356,6 +356,9 @@
     'Synthetic data in mock mode. Affinities describe aggregate audiences, never individuals.': 'Données fictives en mode simulé. Les affinités décrivent des publics agrégés, jamais des individus.',
     '{name}: tour plan': `{name}${NB}: plan de tournée`,
     'Date dossiers': 'Dossiers des dates',
+    'Markets ranked by Hidden Market Score': 'Marchés classés par score de marché caché',
+    'The PDF could not be created': 'Le PDF n’a pas pu être créé',
+    'Check the connection, then try again.': 'Vérifiez la connexion, puis réessayez.',
     'Each pick cites a Qloo request; the full request log is in Tourbook’s Agent view.': `Chaque choix cite une requête Qloo${NB}; le journal complet des requêtes est dans la vue Agent de Tourbook.`,
     'Date {n}: {name}': `Date {n}${NB}: {name}`,
     // synthetic entity descriptions (mock mode only; live descriptions are Qloo data and stay as sent)
