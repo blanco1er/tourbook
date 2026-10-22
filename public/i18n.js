@@ -157,6 +157,7 @@
     // ---- agent run ----
     'Planning {artist}.': 'Planification de {artist}.',
     'Connecting to the agent…': 'Connexion à l’agent…',
+    'The live view is blocked on this network. The plan is still being built…': 'L’affichage en direct est bloqué sur ce réseau. Le plan continue de se construire…',
     'Attached to the run already in progress. No second plan was started.': 'Rattaché à l’exécution déjà en cours. Aucun second plan n’a été lancé.',
     '{name} is planned': '{name} est planifié',
     '{requests} in {s} s': `{requests} en {s}${NB}s`,

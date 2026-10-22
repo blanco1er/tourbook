@@ -243,7 +243,8 @@ function run(input, { rid, keepView = false, demoIndex } = {}) {
   const es = new EventSource(`/api/plan/stream?${qs}`);
   S.es = es;
   let gotEvent = false;
-  const on = (type, fn) => es.addEventListener(type, (e) => { gotEvent = true; if (S.es !== es) return; const d = JSON.parse(e.data); if (type !== 'done') S.trace.push([type, d]); fn(d); });
+  const H = {}; // the same handlers serve the live stream and the JSON fallback below
+  const on = (type, fn) => { H[type] = fn; es.addEventListener(type, (e) => { gotEvent = true; if (S.es !== es) return; const d = JSON.parse(e.data); if (type !== 'done') S.trace.push([type, d]); fn(d); }); };
   on('plan', (d) => {
     $('#steps').innerHTML = d.steps.map((s) => `<li data-step="${esc(s)}">${esc(t(s))}</li>`).join('');
     setStep('Resolve');
@@ -286,6 +287,25 @@ function run(input, { rid, keepView = false, demoIndex } = {}) {
     S.retryRid = gotEvent ? S.rid : null; // reconnect to the same run: the server replays it, it never starts a second one
     failRun(gotEvent ? t('The connection dropped') : t('The agent could not start'), gotEvent ? t('The plan keeps running on the server. Try again to pick it up where it is.') : t('The server may be restarting. Try again in a moment.'), { keepPending: true });
   };
+  // No event at all after 8 s: the stream is held somewhere on the way (a proxy or relay; seen on an iPhone, 22 Oct).
+  // Fall back to the JSON endpoint with the same request id: it joins the run already started on the server (or starts
+  // it), and its trace is replayed through the same handlers, so the plan and the agent log end up identical.
+  setTimeout(async () => {
+    if (gotEvent || S.es !== es || !S.running) return;
+    es.close(); S.es = null;
+    const th = $('#thought'); if (th) th.textContent = t('The live view is blocked on this network. The plan is still being built…');
+    try {
+      const r = await fetch(`/api/plan?rid=${encodeURIComponent(S.rid)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...input, lang: LANG === 'fr' ? 'fr' : 'en' }) });
+      const out = await r.json();
+      if (!S.running) return;
+      if (!r.ok) { H.fail({ error: out.error, code: r.status === 429 ? 'daily_cap' : undefined }); return; }
+      const { trace = [], ...book } = out;
+      for (const { type, ...d } of trace) { S.trace.push([type, d]); H[type]?.(d); }
+      H.done(book);
+    } catch {
+      if (S.running) failRun(t('The agent could not start'), t('The server may be restarting. Try again in a moment.'), { keepPending: true });
+    }
+  }, 8000);
 }
 
 const SESSION_KEY = 'tourbook:last';

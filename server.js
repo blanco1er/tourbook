@@ -88,7 +88,9 @@ app.post('/api/plan', wrap(async (req, res) => {
 // Full agent run, streamed (Server-Sent Events) for the live "agent studio".
 app.get('/api/plan/stream', (req, res) => {
   const input = parseInput(req.query);
-  res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive' });
+  res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
+  // Some proxies and relays (seen on an iPhone, 22 Oct) hold a stream until a first block arrives: 2 KB of comment flushes it.
+  res.write(`:${' '.repeat(2048)}\n\n`);
   const send = (type, data) => res.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
   if (!input.artist) { send('fail', { error: 'artist is required' }); return res.end(); }
   const started = startPlan(req, input);
