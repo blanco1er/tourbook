@@ -19,7 +19,9 @@ Goal: a tour plan driven by taste, not population. Work in this order:
 3) audience_profile and momentum for the headliner;
 4) for the top 3 markets: local_picks(kind=venue), find_openers, sponsor_fit, local_picks(kind=after_party), local_picks(kind=crowd_brief);
 5) llm_only_baseline;
-6) finish with a short summary (max 3 sentences) that only states facts present in tool results.
+6) finish with a short summary: plain text, no markdown, no lists, at most 3 sentences, only facts present in tool results.
+Speed: call independent tools in the same turn (parallel tool calls), e.g. all resolve_entity calls together,
+audience_profile with momentum, and the five dossier tools of all three markets together.
 Rules: use only IDs returned by tools; never invent venues, brands or numbers; Qloo affinities describe aggregate
 audiences, never individuals; if a tool returns an error, try the next step and mention the gap.`;
 
@@ -51,10 +53,12 @@ export async function runAgent({ input, qloo, llm, emit = () => {} }) {
         planner = new MockLLM();
         out = await planner.chat({ messages, tools: TOOL_DEFS });
       }
-      if (!out.toolCalls?.length) { summary = out.content || ''; break; }
+      if (!out.toolCalls?.length) { summary = plainSummary(out.content || ''); break; }
       if (out.content) emit('thought', { text: out.content });
       messages.push({ role: 'assistant', content: out.content ?? null, tool_calls: out.toolCalls.map((tc) => ({ id: tc.id, type: 'function', function: { name: tc.name, arguments: JSON.stringify(tc.arguments) }, ...(tc.extra ? { extra_content: tc.extra } : {}) })) });
-      for (const tc of out.toolCalls) {
+      // Independent calls from one turn run concurrently (the Qloo limiter caps real concurrency);
+      // results go back to the model in the order it asked for them.
+      const results = await Promise.all(out.toolCalls.map(async (tc) => {
         const tool = TOOLS[tc.name];
         let forModel;
         emit('tool', { id: tc.id, name: tc.name, args: tc.arguments, stage: tool?.stage, status: 'start' });
@@ -68,8 +72,9 @@ export async function runAgent({ input, qloo, llm, emit = () => {} }) {
           forModel = { error: err.message, code: err.code };
           emit('tool', { id: tc.id, name: tc.name, stage: tool?.stage, status: 'error', error: err.message });
         }
-        messages.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(forModel).slice(0, 8000) });
-      }
+        return { role: 'tool', tool_call_id: tc.id, content: JSON.stringify(forModel).slice(0, 8000) };
+      }));
+      messages.push(...results);
     }
 
     // Guarantee layer: if the model skipped something essential, complete it deterministically.
@@ -89,6 +94,15 @@ export async function runAgent({ input, qloo, llm, emit = () => {} }) {
     emit('done', book);
     return book;
   });
+}
+
+/** The summary is shown as one paragraph: drop markdown, keep the model's closing section, cap at 3 sentences. */
+export function plainSummary(text) {
+  const parts = String(text).split(/^#{1,6}\s*summary\s*$/im);
+  const tail = parts[parts.length - 1];
+  const flat = tail.replace(/^#{1,6}\s.*$/gm, ' ').replace(/^\s*([-*]|\d+\.)\s+/gm, ' ').replace(/[*_`]|---/g, '').replace(/\s+/g, ' ').trim();
+  const sentences = flat.match(/[^.!?]+[.!?]+/g) || [flat];
+  return sentences.slice(0, 3).map((x) => x.trim()).join(' ');
 }
 
 function assemble(runId, state, summary, meta) {

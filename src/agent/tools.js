@@ -30,7 +30,8 @@ export const TOOLS = {
       const exact = cands.filter((c) => c.name?.toLowerCase() === name.toLowerCase());
       const selected = exact[0] || cands[0] || null;
       const full = { input: name, selected, match: exact.length === 1 ? 'exact' : selected ? 'best_guess' : 'not_found', candidates: cands, provenance };
-      if (selected) state.resolved.push(full);
+      // Parallel resolves can finish in any order: the headliner always comes first.
+      if (selected) { if (name.trim().toLowerCase() === String(state.input?.artist || '').trim().toLowerCase()) state.resolved.unshift(full); else state.resolved.push(full); }
       return { full, forModel: { selected, match: full.match, candidates: cands.slice(0, 3).map(({ id, name: n }) => ({ id, name: n })) } };
     },
   },
