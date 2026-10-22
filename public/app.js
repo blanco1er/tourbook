@@ -73,6 +73,9 @@ function renderDemos() {
   $('#bodyDemos').innerHTML = demos.map((d, i) => `<li><button class="ui-row" type="button" data-run-demo="${i}"><span class="ui-row__icon">${icon(TYPE_ICON[d.type] || 'i-note')}</span><span class="ui-row__body"><span class="ui-row__title">${esc(d.artist)}</span><span class="ui-row__subtitle">${esc(t(TYPE_LABEL[d.type] || 'Music'))} · ${esc(blurb(d))}</span></span>${icon('i-chev-r', 'ui-row__chevron')}</button></li>`).join('');
 }
 
+// iOS Safari ignores user-scalable=no: block the page pinch itself (the map's own pinch uses touch events and still works).
+for (const ev of ['gesturestart', 'gesturechange']) document.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
+
 function bindUi() {
   document.addEventListener('click', (e) => {
     const nav = e.target.closest('[data-nav]');
