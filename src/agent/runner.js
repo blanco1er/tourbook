@@ -53,7 +53,7 @@ export async function runAgent({ input, qloo, llm, emit = () => {} }) {
       }
       if (!out.toolCalls?.length) { summary = out.content || ''; break; }
       if (out.content) emit('thought', { text: out.content });
-      messages.push({ role: 'assistant', content: out.content ?? null, tool_calls: out.toolCalls.map((tc) => ({ id: tc.id, type: 'function', function: { name: tc.name, arguments: JSON.stringify(tc.arguments) } })) });
+      messages.push({ role: 'assistant', content: out.content ?? null, tool_calls: out.toolCalls.map((tc) => ({ id: tc.id, type: 'function', function: { name: tc.name, arguments: JSON.stringify(tc.arguments) }, ...(tc.extra ? { extra_content: tc.extra } : {}) })) });
       for (const tc of out.toolCalls) {
         const tool = TOOLS[tc.name];
         let forModel;

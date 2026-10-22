@@ -37,7 +37,8 @@ export class OpenAICompatLLM {
     const msg = data?.choices?.[0]?.message || {};
     return {
       content: msg.content ?? null,
-      toolCalls: (msg.tool_calls || []).map((tc) => ({ id: tc.id, name: tc.function?.name, arguments: safeJson(tc.function?.arguments) })),
+      // `extra_content` carries Gemini 3's thought signature: it must go back with the call on the next turn.
+      toolCalls: (msg.tool_calls || []).map((tc) => ({ id: tc.id, name: tc.function?.name, arguments: safeJson(tc.function?.arguments), extra: tc.extra_content })),
       usage: data.usage,
     };
   }
