@@ -73,8 +73,13 @@ code { font-family: var(--font-mono); font-size: 0.9em; letter-spacing: 0; }
   .ui-toolbar { padding-top: calc(10px + env(safe-area-inset-top)); }
   .tb-title h1 { font-size: var(--text-large-title); letter-spacing: var(--tracking-large-title); }
   .tb-title p { white-space: normal; } /* phone: the subtitle wraps under the buttons instead of ending in “…” */
+  /* phone: a long act name wraps to two lines ("Men I Trust", "Last Podcast on the Left") instead of "Men I Tr…" */
+  .tb-title h1 { white-space: normal; overflow: hidden; text-overflow: clip; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.08; overflow-wrap: anywhere; }
   .ui-toolbar.is-scrolled .tb-title h1 { font: var(--weight-semibold) var(--text-headline)/1.3 var(--font-sans); letter-spacing: var(--tracking-body); }
   .ui-toolbar.is-scrolled .tb-title p { display: none; }
+  /* iOS pattern: buttons on the top row, the large title on its own full-width row below (no "Men I Tr…") */
+  .ui-toolbar:not(.is-scrolled) { flex-wrap: wrap; justify-content: flex-end; row-gap: 4px; }
+  .ui-toolbar:not(.is-scrolled) .tb-title { order: 9; flex: 1 0 100%; }
 }
 
 /* ---------- Page ---------- */
