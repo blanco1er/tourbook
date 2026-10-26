@@ -383,7 +383,34 @@ function setMapExpanded(on) {
   btn.querySelector('use').setAttribute('href', on ? '#i-x' : '#i-expand');
   const coarse = matchMedia('(pointer: coarse)').matches;
   if (S.map && coarse) { if (on) S.map.cooperativeGestures.disable(); else S.map.cooperativeGestures.enable(); }
+  if (!coarse) setMapActive(on); // full screen on a computer: nothing to scroll, so the wheel zooms the map
   requestAnimationFrame(() => { S.map?.resize(); fitTour(true); });
+}
+
+/** Computer (mouse or trackpad): the wheel scrolls the page over a resting map; a click on the map wakes it up and the
+ *  wheel then zooms it. The map rests again when the pointer leaves it or after a click elsewhere. Phones are untouched
+ *  (they keep the two-finger rule above). Dragging still pans at rest: a drag never scrolls the page, and the press wakes the map. */
+function setMapActive(on) {
+  const wrap = $('#mapwrap');
+  if (!S.map || matchMedia('(pointer: coarse)').matches) return;
+  if (on) S.map.scrollZoom.enable(); else S.map.scrollZoom.disable();
+  wrap.classList.toggle('is-active', on);
+}
+function bindMapActivation() {
+  const wrap = $('#mapwrap');
+  if (!S.map || matchMedia('(pointer: coarse)').matches) return;
+  const expanded = () => wrap.classList.contains('is-expanded');
+  wrap.addEventListener('pointerdown', () => setMapActive(true));
+  wrap.addEventListener('focusin', () => setMapActive(true));
+  wrap.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse' && !expanded()) setMapActive(false); });
+  wrap.addEventListener('focusout', (e) => { if (!wrap.contains(e.relatedTarget) && !wrap.matches(':hover') && !expanded()) setMapActive(false); });
+  document.addEventListener('pointerdown', (e) => { if (!wrap.contains(e.target) && !expanded()) setMapActive(false); });
+  // A trackpad pinch arrives as ctrl + wheel: over a resting map, keep it from zooming the whole page and point to the click.
+  wrap.addEventListener('wheel', (e) => {
+    if (!e.ctrlKey || wrap.classList.contains('is-active')) return;
+    e.preventDefault();
+    const hint = $('#mapHint'); hint.classList.remove('is-nudge'); void hint.offsetWidth; hint.classList.add('is-nudge');
+  }, { passive: false });
 }
 
 function setStep(stage) {
@@ -618,8 +645,9 @@ const MAP_LOCALE_FR = {
 function initMap() {
   if (!window.maplibregl) { $('#map').innerHTML = `<div class="map-fallback">${t('The map could not load (offline?). The plan below still works.')}</div>`; return; }
   try {
-    S.map = new maplibregl.Map({ container: 'map', style: STYLE(), bounds: US, fitBoundsOptions: { padding: mapPadding() }, attributionControl: false, dragRotate: false, pitchWithRotate: false, cooperativeGestures: matchMedia('(pointer: coarse)').matches, ...(LANG === 'fr' ? { locale: MAP_LOCALE_FR } : {}) });
+    S.map = new maplibregl.Map({ container: 'map', style: STYLE(), bounds: US, fitBoundsOptions: { padding: mapPadding() }, attributionControl: false, dragRotate: false, pitchWithRotate: false, cooperativeGestures: matchMedia('(pointer: coarse)').matches, scrollZoom: matchMedia('(pointer: coarse)').matches, ...(LANG === 'fr' ? { locale: MAP_LOCALE_FR } : {}) });
     S.map.touchZoomRotate.disableRotation();
+    bindMapActivation();
     S.map.on('style.load', () => { quietStyle(); drawCurrent(); });
     S.map.once('load', () => { quietStyle(); drawCurrent(); });
     S.map.on('moveend', declutter);

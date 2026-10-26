@@ -53,6 +53,7 @@
     'Fit the whole tour': 'Afficher toute la tournée',
     'Open the map full screen': 'Ouvrir la carte en plein écran',
     'Close the full-screen map': 'Fermer la carte plein écran',
+    'Click to explore the map': 'Cliquer pour explorer la carte',
     '© OpenStreetMap contributors · OpenMapTiles · OpenFreeMap': '© contributeurs OpenStreetMap · OpenMapTiles · OpenFreeMap',
     'One tap each': 'Un clic chacun',
     'What the agent does': 'Ce que fait l’agent',

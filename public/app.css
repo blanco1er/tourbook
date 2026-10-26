@@ -177,6 +177,22 @@ code { font-family: var(--font-mono); font-size: 0.9em; letter-spacing: 0; }
 .map-legend .ramp.is-pop { background: linear-gradient(90deg, var(--fill), var(--pop)); }
 .map-legend .ends { display: flex; justify-content: space-between; gap: 12px; color: var(--label-on-map); }
 .map-legend .ui-secondary { color: var(--label-on-map); }
+/* Computer: the wheel scrolls the page over a resting map; one click wakes it (see setMapActive in app.js). */
+.map-hint { position: absolute; z-index: 2; top: 16px; left: 50%; transform: translate(-50%, -4px);
+  display: inline-flex; align-items: center; gap: 6px; margin: 0; padding: 7px 14px 7px 11px; border-radius: 999px;
+  font: var(--weight-medium) var(--text-footnote)/1.2 var(--font-sans); color: var(--label); white-space: nowrap;
+  pointer-events: none; opacity: 0; transition: opacity var(--dur-quick, 0.2s) ease, transform var(--dur-quick, 0.2s) ease; }
+.map-hint .ui-icon { width: 15px; height: 15px; color: var(--label-on-map); }
+@media (min-width: 1000px) { /* the map runs under the glass sidebar: centre on the part left visible */
+  .ui-app:not(.is-sidebar-collapsed) .map:not(.is-expanded) .map-hint { left: calc(50% + (var(--sidebar-w) + var(--sidebar-inset) * 2) / 2); } }
+@media (hover: hover) and (pointer: fine) {
+  .map:hover:not(.is-active) .map-hint, .map-hint.is-nudge { opacity: 1; transform: translate(-50%, 0); }
+}
+.map-hint.is-nudge { animation: map-hint-nudge 0.5s var(--ease-bouncy, ease) 1; }
+@keyframes map-hint-nudge { 40% { transform: translate(-50%, 0) scale(1.06); } }
+.map.is-active .map-hint.is-nudge { opacity: 0; }
+@media (pointer: coarse) { .map-hint { display: none; } }
+@media (prefers-reduced-motion: reduce) { .map-hint { transition: opacity 0.2s; transform: translate(-50%, 0); } .map-hint.is-nudge { animation: none; } }
 .map-fallback { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; color: var(--label-secondary); }
 @media (max-width: 999px) { .map { margin-left: calc(-1 * var(--page-pad)); } .map-switch, .map-legend { left: var(--page-pad); } }
 @media (max-width: 699px) {
