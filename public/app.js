@@ -400,8 +400,10 @@ function bindMapActivation() {
   const wrap = $('#mapwrap');
   if (!S.map || matchMedia('(pointer: coarse)').matches) return;
   const expanded = () => wrap.classList.contains('is-expanded');
-  wrap.addEventListener('pointerdown', () => setMapActive(true));
-  wrap.addEventListener('focusin', () => setMapActive(true));
+  // the small cross puts the map back to rest (the wheel scrolls the page again), even with the pointer still over it
+  $('#mapRest').addEventListener('click', () => setMapActive(false));
+  wrap.addEventListener('pointerdown', (e) => { if (!e.target.closest('#mapRest')) setMapActive(true); });
+  wrap.addEventListener('focusin', (e) => { if (!e.target.closest('#mapRest')) setMapActive(true); });
   wrap.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse' && !expanded()) setMapActive(false); });
   wrap.addEventListener('focusout', (e) => { if (!wrap.contains(e.relatedTarget) && !wrap.matches(':hover') && !expanded()) setMapActive(false); });
   document.addEventListener('pointerdown', (e) => { if (!wrap.contains(e.target) && !expanded()) setMapActive(false); });

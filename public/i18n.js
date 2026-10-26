@@ -54,6 +54,7 @@
     'Open the map full screen': 'Ouvrir la carte en plein écran',
     'Close the full-screen map': 'Fermer la carte plein écran',
     'Click to explore the map': 'Cliquer pour explorer la carte',
+    'Done with the map: scroll the page': 'Fermer la carte et reprendre le défilement',
     '© OpenStreetMap contributors · OpenMapTiles · OpenFreeMap': '© contributeurs OpenStreetMap · OpenMapTiles · OpenFreeMap',
     'One tap each': 'Un clic chacun',
     'What the agent does': 'Ce que fait l’agent',

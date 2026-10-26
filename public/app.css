@@ -191,7 +191,16 @@ code { font-family: var(--font-mono); font-size: 0.9em; letter-spacing: 0; }
 .map-hint.is-nudge { animation: map-hint-nudge 0.5s var(--ease-bouncy, ease) 1; }
 @keyframes map-hint-nudge { 40% { transform: translate(-50%, 0) scale(1.06); } }
 .map.is-active .map-hint.is-nudge { opacity: 0; }
-@media (pointer: coarse) { .map-hint { display: none; } }
+/* Active map: a small, quiet cross in the top corner puts it back to rest (not in full screen, which has its own close) */
+.map-rest { position: absolute; z-index: 3; top: 16px; left: 50%; width: 30px; min-width: 30px; height: 30px; padding: 0;
+  border-radius: 50%; opacity: 0; pointer-events: none; transform: translateX(-50%) scale(0.9);
+  transition: opacity var(--dur-quick, 0.2s) ease, transform var(--dur-quick, 0.2s) ease; }
+.map-rest .ui-icon { width: 14px; height: 14px; }
+@media (min-width: 1000px) { /* same place as the hint: centred on the part of the map left visible by the sidebar */
+  .ui-app:not(.is-sidebar-collapsed) .map:not(.is-expanded) .map-rest { left: calc(50% + (var(--sidebar-w) + var(--sidebar-inset) * 2) / 2); } }
+.map.is-active:not(.is-expanded) .map-rest { opacity: 0.85; pointer-events: auto; transform: translateX(-50%) scale(1); }
+.map.is-active:not(.is-expanded) .map-rest:hover { opacity: 1; }
+@media (pointer: coarse) { .map-hint, .map-rest { display: none; } }
 @media (prefers-reduced-motion: reduce) { .map-hint { transition: opacity 0.2s; transform: translate(-50%, 0); } .map-hint.is-nudge { animation: none; } }
 .map-fallback { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; color: var(--label-secondary); }
 @media (max-width: 999px) { .map { margin-left: calc(-1 * var(--page-pad)); } .map-switch, .map-legend { left: var(--page-pad); } }
