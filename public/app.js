@@ -1061,9 +1061,9 @@ function heatPaint(opacity) {
     'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 3, 0.75, 6, 1.4, 9, 2.2],
     'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 3, 15, 4, 21, 6, 40, 9, 80],
     'heatmap-color': dark
-      // warm-only "hot core" ramp (owner, 30 Oct, after the Snap Map heatmap): pale yellow edge → amber → orange → deep red core
-      ? ['interpolate', ['linear'], ['heatmap-density'], 0, 'rgba(120,53,15,0)', 0.15, 'rgba(180,83,9,0.35)', 0.35, 'rgba(245,158,11,0.6)', 0.6, '#F97316', 0.82, '#EA3A12', 1, '#FF5A36']
-      : ['interpolate', ['linear'], ['heatmap-density'], 0, 'rgba(254,240,138,0)', 0.15, 'rgba(253,224,71,0.38)', 0.4, 'rgba(251,191,36,0.6)', 0.65, '#FB923C', 0.88, '#F26419', 1, '#DC2626'],
+      // full spectrum like the Snap Map heatmap (owner's choice, 30 Oct): cool blue edge → teal → green → yellow → orange → red core
+      ? ['interpolate', ['linear'], ['heatmap-density'], 0, 'rgba(56,189,248,0)', 0.1, 'rgba(56,189,248,0.35)', 0.28, 'rgba(45,212,191,0.55)', 0.45, 'rgba(132,204,22,0.7)', 0.6, '#FACC15', 0.75, '#FB923C', 0.88, '#EF4444', 1, '#DC2626']
+      : ['interpolate', ['linear'], ['heatmap-density'], 0, 'rgba(125,211,252,0)', 0.1, 'rgba(125,211,252,0.4)', 0.28, 'rgba(94,234,212,0.55)', 0.45, 'rgba(163,230,53,0.7)', 0.6, '#FDE047', 0.75, '#FB923C', 0.88, '#EF4444', 1, '#DC2626'],
     'heatmap-opacity': opacity,
   };
 }
@@ -1145,6 +1145,7 @@ function mix(a, b, t) {
 // One warm orange scale: the stronger the market (Hidden Market Score), the deeper the colour (light mode) or the brighter (dark mode).
 // Clean orange, no brown (owner, 30 Oct): light peach for a weaker market, deep vivid orange for a stronger one.
 const tasteColor = (h) => { const t = Math.max(0, Math.min(1, (h - 35) / 60)); return isDark() ? mix('#9A3412', '#FF8A4C', t) : mix('#FBC7A4', '#C2410C', t); };
+const STOP_INK = '#111111'; // tour stops: black dots with a white ring, like the Snap Map (owner, 30 Oct)
 const greyDot = () => (isDark() ? '#636366' : '#AEAEB2');
 
 function drawBaseMap() {
@@ -1166,7 +1167,7 @@ function drawLiveTop() {
     const t = top.get(c.id);
     if (!t) addMarker(c, { size: 7, bg: greyDot(), minor: true });
   }
-  for (const [id, t] of top) { const c = S.cities[id]; addMarker({ ...c, ...t }, { size: 14, bg: tasteColor(t.hms), rank: t.rank, score: t.hms, label: c.name, enter: true, delay: t.rank * 90 }); }
+  for (const [id, t] of top) { const c = S.cities[id]; addMarker({ ...c, ...t }, { size: 14, bg: STOP_INK, rank: t.rank, score: t.hms, label: c.name, enter: true, delay: t.rank * 90 }); }
   S.routeCoords = [...top.keys()].map((id) => S.cities[id]).filter(Boolean).map((c) => [c.lng, c.lat]);
   fitTour(true, true);
   declutter();
@@ -1189,10 +1190,10 @@ function drawMap() {
   for (const m of all.filter((x) => selected.has(x.id))) {
     const rank = selected.get(m.id);
     const size = Math.round((qloo ? 12 + 9 * ((m.affinity - lo) / Math.max(0.001, hi - lo)) : 11 + 11 * Math.sqrt(m.pop / maxPop)) * k);
-    addMarker(m, { size, bg: qloo ? tasteColor(m.hms) : (isDark() ? '#8E8E93' : '#636366'), rank, score: qloo ? m.hms : null, label: m.name, hidden: qloo && m.hidden, enter: true, delay: rank * 90 });
+    addMarker(m, { size, bg: qloo ? STOP_INK : (isDark() ? '#8E8E93' : '#636366'), rank, score: qloo ? m.hms : null, label: m.name, hidden: qloo && m.hidden, enter: true, delay: rank * 90 });
   }
   $('#legend').innerHTML = qloo
-    ? `<b>${t('With Qloo')}</b><div class="ramp"></div><div class="ends"><span>${t('Hidden Market Score')}</span><span>${t('higher')}</span></div><span class="ui-secondary">${t('Deeper orange, stronger market. A breathing halo marks a hidden market.')}</span>${heatLegend()}`
+    ? `<b>${t('Fan heat')}</b><div class="ramp is-heat"></div><div class="ends"><span>${t('fewer fans')}</span><span>${t('more fans')}</span></div><span class="ui-secondary">${t('Black dots are the tour stops, numbered in order, with their Hidden Market Score. A breathing halo marks a hidden market.')}</span>${heatLegend()}`
     : `<b>${t('Without Qloo')}</b><div class="ramp is-pop"></div><div class="ends"><span>${t('Population')}</span><span>${t('bigger')}</span></div><span class="ui-secondary">${t('What a model without taste data proposes.')}</span>`;
   const coords = routeIds.map((id) => S.cities[id]).filter(Boolean).map((c) => [c.lng, c.lat]);
   S.routeCoords = coords;
