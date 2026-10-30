@@ -224,7 +224,7 @@ app.post('/api/poster', wrap(async (req, res) => {
   posterArt({ ...input, beforeGenerate: reserve, llm, onStage: (stage) => { job.stage = stage; job.stageAt = Date.now(); } })
     .then((out) => {
       if (!out.cached) { posters.set(key, (posters.get(key) || 0) + 1); postersToday.n++; if (posters.size > 5000) posters.clear(); }
-      Object.assign(job, { stage: 'done', result: { url: `/api/poster/${out.hash}.png`, cached: out.cached, model: out.model, full: !!out.full, direction: out.direction || null, proofread: out.proofread || null } });
+      Object.assign(job, { stage: 'done', result: { url: `/api/poster/${out.hash}.png`, cached: out.cached, model: out.model, full: !!out.full, band: !!out.band, direction: out.direction || null } });
     })
     .catch((e) => Object.assign(job, { stage: 'error', error: e.message, code: e.code, status: e.status || 502 }));
   for (const [k, j] of posterJobs) if (Date.now() - j.at > 15 * 60 * 1000) posterJobs.delete(k);

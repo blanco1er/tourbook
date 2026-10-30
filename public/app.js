@@ -254,7 +254,7 @@ function run(input, { rid, keepView = false, demoIndex, resume = false } = {}) {
   if (S.running) { toast({ title: t('Already planning'), detail: t('{artist} is still running. One plan at a time.', { artist: S.input?.artist }) }); return; }
   S.running = true;
   S.rid = rid || newRid(); S.retryRid = null;
-  S.es?.close(); S.book = null; S.dossiers = {}; setActPhoto(null); S.actShown = false; $('#actId').hidden = true; S.validated = false; S.posterArt = null; S.posterFull = false; S.act = null; updateValidate(); S.calls = []; S.tools = 0; S.trace = []; S.input = input; S.liveTop = null; S.heat = null; S.curTool = null; S.plan = 'qloo';
+  S.es?.close(); S.book = null; S.dossiers = {}; setActPhoto(null); S.actShown = false; $('#actId').hidden = true; S.validated = false; S.posterArt = null; S.posterFull = false; S.posterBand = false; S.posterDir = null; S.act = null; updateValidate(); S.calls = []; S.tools = 0; S.trace = []; S.input = input; S.liveTop = null; S.heat = null; S.curTool = null; S.plan = 'qloo';
   fillForm(input);
   stopVoice(); if ($('#sheet-dossier').open) closeSheet('sheet-dossier');
   setBusy(true, demoIndex ?? S.cfg.demos.findIndex((d) => d.artist === input.artist));
@@ -389,7 +389,7 @@ function isSaved() { const id = savedId(); return !!id && readSaved().some((x) =
 function saveTour({ quiet = false } = {}) {
   if (!S.book) return;
   const b = S.book; const id = savedId(b);
-  const entry = { id, savedAt: Date.now(), lang: LANG, name: b.artist?.selected?.name || S.input?.artist, photo: b.artist?.selected?.photo || null, type: S.input?.type || 'artist', stops: b.markets?.top?.length || 0, lead: b.markets?.top?.[0]?.name || '', params: shareParams(), input: S.input, book: b, trace: S.trace, poster: S.posterArt || null, posterFull: !!S.posterFull };
+  const entry = { id, savedAt: Date.now(), lang: LANG, name: b.artist?.selected?.name || S.input?.artist, photo: b.artist?.selected?.photo || null, type: S.input?.type || 'artist', stops: b.markets?.top?.length || 0, lead: b.markets?.top?.[0]?.name || '', params: shareParams(), input: S.input, book: b, trace: S.trace, poster: S.posterArt || null, posterFull: !!S.posterFull, posterBand: !!S.posterBand, posterDir: S.posterDir || null };
   const list = [entry, ...readSaved().filter((x) => x.id !== id)].slice(0, 12);
   const ok = writeSaved(list);
   updateSaveBtn(); renderSaved();
@@ -414,7 +414,7 @@ function openSaved(id) {
   const x = readSaved().find((y) => y.id === id); if (!x?.book?.markets) return;
   S.es?.close(); S.running = false;
   S.input = x.input; S.book = x.book; S.trace = x.trace || []; S.calls = []; S.tools = 0; S.curTool = null; S.plan = 'qloo';
-  S.posterArt = x.poster || null; S.posterFull = !!x.posterFull; S.validated = !!x.poster; S.act = null;
+  S.posterArt = x.poster || null; S.posterFull = !!x.posterFull; S.posterBand = !!x.posterBand; S.posterDir = x.posterDir || null; S.validated = !!x.poster; S.act = null;
   fillForm(S.input); resetAgentView();
   for (const [type, d] of S.trace) {
     if (type === 'thought') agentLine({ kind: 'thought', text: d.text });
@@ -448,7 +448,7 @@ function restoreSession() {
 function goHome() {
   if (S.running) return;
   stopVoice(); if ($('#sheet-dossier').open) closeSheet('sheet-dossier');
-  S.book = null; S.input = null; S.trace = []; S.calls = []; S.tools = 0; S.plan = 'qloo'; S.liveTop = null; S.heat = null; setActPhoto(null); $('#actId').hidden = true; S.validated = false; S.posterArt = null; S.posterFull = false; S.act = null; updateValidate();
+  S.book = null; S.input = null; S.trace = []; S.calls = []; S.tools = 0; S.plan = 'qloo'; S.liveTop = null; S.heat = null; setActPhoto(null); $('#actId').hidden = true; S.validated = false; S.posterArt = null; S.posterFull = false; S.posterBand = false; S.posterDir = null; S.act = null; updateValidate();
   try { sessionStorage.removeItem(SESSION_KEY); } catch { /* storage blocked */ }
   clearPending();
   const v = $('#view-plan'); v.dataset.state = 'empty';
@@ -1796,6 +1796,48 @@ function artAccent(x, W, H) {
     const k = 255 / Math.max(...best); return `rgb(${best.map((v) => Math.min(255, Math.round(v * Math.min(k, 1.35)))).join(',')})`;
   } catch { return null; }
 }
+// The tour-date block, ticket line and footer, set by the app (always exact), in the poster's accent colour.
+function drawDateBlock(x, W, H, stops, font, accent) {
+  const top = Math.round(H * 0.665);
+  // a near-solid band in the poster's own darkest tone, so the block is always clean even if the art strays into it
+  let base = [10, 10, 12];
+  try { const d = x.getImageData(0, top, W, H - top).data; let best = 1e9; for (let i = 0; i < d.length; i += 4 * 211) { const l = d[i] + d[i + 1] + d[i + 2]; if (l < best) { best = l; base = [d[i], d[i + 1], d[i + 2]]; } } } catch { /* keep black */ }
+  base = base.map((v) => Math.round(v * 0.55));
+  const rgb = (a) => `rgba(${base.join(',')},${a})`;
+  const g = x.createLinearGradient(0, top - 90, 0, top + 30); g.addColorStop(0, rgb(0)); g.addColorStop(1, rgb(1));
+  x.fillStyle = g; x.fillRect(0, top - 90, W, 120); x.fillStyle = rgb(1); x.fillRect(0, top + 30, W, H - top - 30);
+  const caps = /upper|caps|capital/i.test(S.posterDir?.typography || '');
+  const cond = /condens|compress|narrow/i.test(S.posterDir?.typography || '');
+  // numbers and ticket line: the art's accent, lifted until it reads on the dark band
+  let ac = '#FFFFFF';
+  const m = /rgb\((\d+),(\d+),(\d+)\)/.exec(accent || '');
+  if (m) { let c = m.slice(1).map(Number); for (let k = 0; k < 6 && (0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]) < 150; k++) c = c.map((v) => Math.round(v + (255 - v) * 0.3)); ac = `rgb(${c.join(',')})`; }
+  const dates = (S.book?.dates || []);
+  const rows = stops.map((s, i) => { const v = dates.find((d) => d.market?.id === s.id)?.venue?.picks?.[0]?.name; return { n: String(i + 1).padStart(2, '0'), city: `${s.name}, ${s.state}`, venue: v || '' }; });
+  const two = rows.length > 5; const per = two ? Math.ceil(rows.length / 2) : rows.length;
+  const L = 64, R = W - 64, colW = two ? (R - L - 40) / 2 : R - L;
+  const avail = H - 150 - (top + 18); const rowH = Math.min(two ? 62 : 74, avail / per);
+  const citySize = Math.round(Math.min(two ? 30 : 38, rowH * 0.5)); const venueSize = Math.round(citySize * 0.62);
+  x.textBaseline = 'alphabetic';
+  rows.forEach((row, i) => {
+    const col = two && i >= per ? 1 : 0; const X = L + col * (colW + 40); const Y = top + 18 + (i - col * per) * rowH + citySize;
+    x.strokeStyle = 'rgba(255,255,255,.22)'; x.lineWidth = 1.5; x.beginPath(); x.moveTo(X, Y - citySize - 10); x.lineTo(X + colW, Y - citySize - 10); x.stroke();
+    x.fillStyle = ac; x.font = `700 ${Math.round(citySize * 0.72)}px ${font}`; x.fillText(row.n, X, Y);
+    const cx = X + citySize * 1.55;
+    x.fillStyle = '#FFFFFF'; x.font = `${cond ? 700 : 600} ${citySize}px ${font}`;
+    const city = caps ? row.city.toUpperCase() : row.city; x.fillText(city, cx, Y);
+    if (row.venue) {
+      const w = x.measureText(city).width; x.font = `500 ${venueSize}px ${font}`; x.fillStyle = 'rgba(255,255,255,.62)';
+      let v = row.venue; const room = X + colW - (cx + w + 16);
+      while (v.length > 3 && x.measureText(`· ${v}`).width > room) v = `${v.slice(0, -2)}…`;
+      if (room > 60) x.fillText(`· ${v}`, cx + w + 12, Y);
+    }
+  });
+  x.font = `700 30px ${font}`; x.fillStyle = ac; if ('letterSpacing' in x) x.letterSpacing = '3px';
+  x.fillText(t('Tickets soon').toUpperCase(), L, H - 84);
+  if ('letterSpacing' in x) x.letterSpacing = '0px';
+  x.font = `500 22px ${font}`; x.fillStyle = 'rgba(255,255,255,.6)'; const f = t('Routed by taste with Qloo'); x.fillText(f, R - x.measureText(f).width, H - 84);
+}
 async function drawPoster() {
   const c = $('#posterCanvas'); const W = 1080, H = 1350; const x = c.getContext('2d');
   const font = getComputedStyle(document.documentElement).getPropertyValue('--font-display') || 'system-ui';
@@ -1803,7 +1845,11 @@ async function drawPoster() {
   x.clearRect(0, 0, W, H);
   // background: the AI artwork, or a warm dark field until it is made
   let art = null; if (S.posterArt) { try { art = await loadImg(S.posterArt); } catch { art = null; } }
-  if (art && S.posterFull) { coverDraw(x, art, 0, 0, W, H); return; } // the model designed the whole poster: show it as is
+  if (art && S.posterFull) { // the model designed the poster; the app sets the date block in its reserved bottom area
+    coverDraw(x, art, 0, 0, W, H);
+    if (S.posterBand) drawDateBlock(x, W, H, stops, font, artAccent(x, W, H));
+    return;
+  }
   let accent = '#FF8A4C';
   if (art) { coverDraw(x, art, 0, 0, W, H); accent = artAccent(x, W, H) || accent; }
   else {
@@ -1861,7 +1907,7 @@ async function drawPoster() {
 const POSTER_STAGE = {
   start: { from: 1, to: 6, tau: 2, label: 'Starting…' },
   direction: { from: 6, to: 16, tau: 4, label: 'Choosing the art direction…' },
-  painting: { from: 16, to: 72, tau: 22, label: 'Composing the poster…' },
+  painting: { from: 16, to: 94, tau: 18, label: 'Composing the poster…' },
   proofreading: { from: 72, to: 90, tau: 5, label: 'Proofreading the text…' },
   repainting: { from: 76, to: 96, tau: 24, label: 'Fixing a word, painting again…' },
   done: { from: 100, to: 100, tau: 1, label: 'Ready' },
@@ -1921,7 +1967,7 @@ async function makePosterArt() {
       if (j.stage !== S.posterStage) { S.posterStage = j.stage; S.posterStageAt = performance.now() - (j.stageMs || 0); const cap = POSTER_STAGE[j.stage]; if (cap) $('#posterBusyText').textContent = t(cap.label); }
       if (j.stage === 'done') break;
     }
-    S.posterArt = j.url; S.posterFull = !!j.full; btn.hidden = true; if (isSaved()) saveTour({ quiet: true });
+    S.posterArt = j.url; S.posterFull = !!j.full; S.posterBand = !!j.band; S.posterDir = j.direction || null; btn.hidden = true; if (isSaved()) saveTour({ quiet: true });
     await drawPoster();
   } catch (e) {
     toast({ title: e.code === 'no_image_model' ? t('No image model on this server') : t('The artwork could not be made'), detail: e.code === 'no_image_model' ? t('The poster keeps its typographic version.') : t(e.message) });
@@ -1937,4 +1983,4 @@ function sharePoster(share) {
   }, 'image/png');
 }
 
-window.Tourbook = { S, UI, briefingText, run, startScan, stopScan, startDots }; // handy for debugging in the console
+window.Tourbook = { S, UI, briefingText, run, startScan, stopScan, startDots, drawPoster }; // handy for debugging in the console

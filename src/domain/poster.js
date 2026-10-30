@@ -86,7 +86,7 @@ export function posterPrompt(dir) {
 
 // The whole poster designed by the image model (owner, 30 Oct: "the text and the photo are always laid out the same").
 // The exact text is given word for word and checked afterwards; the real photo is passed in and must not be redrawn.
-function fullPosterPrompt(dir, { name, lines, footer, hasPhoto, tourLabel, tickets }) {
+function fullPosterPrompt(dir, { name, hasPhoto, tourLabel }) {
   return [
     'Design a complete, print-ready concert tour poster, portrait 4:5. It must look modern, premium and high-end, like the work of a top contemporary design studio: bold contemporary typography, strong grid, generous negative space, confident colour, crisp print finish. No template: every decision serves this specific act.',
     'Never use ornaments, baroque details, crowns, laurels, arches, frames, ovals, medallions, watercolour washes, clip-art or vintage pastiche.',
@@ -95,14 +95,12 @@ function fullPosterPrompt(dir, { name, lines, footer, hasPhoto, tourLabel, ticke
     dir.layout ? `Layout: ${dir.layout}.` : 'Layout: an original, bold composition specific to this act.',
     dir.typography ? `Typography: ${dir.typography}.` : '',
     hasPhoto ? `The attached image is the real photograph of ${name}. Integrate it into the design${dir.photo ? ` (${dir.photo})` : ''}. Use it as a photograph with its original framing: you may crop it, cut out its background, tint it or set it in black and white, but never extend it (no invented body, legs or pose), never redraw, restyle or replace the person, and never add any other person.` : 'No people, no faces.',
-    'It must read instantly as a concert TOUR poster: the tour label large and prominent near the name, and the stops set as the classic tour-date block (one stop per line, like the date list on a real tour poster).',
-    'Render this text exactly, spelled exactly as written, and no other words, letters or numbers anywhere:',
-    `- headline: "${name}" (the full name, exactly; never shortened)`,
-    `- tour label, large: "${tourLabel}"`,
-    `- the tour stops, in this order, one per line: ${lines.map((l) => `"${l}"`).join(', ')}`,
-    `- ticket line: "${tickets}"`,
-    `- small footer: "${footer}"`,
-    'All text must be sharp, legible and correctly spelled. No other text at all: no credits, no small print, no invented names, no dates, no logos, no brand names, no captions.',
+    'It must read instantly as a concert TOUR poster: the tour label is large and prominent right under or beside the name.',
+    'RESERVED AREA: the bottom 34% of the poster is kept for the tour-date block, which is added afterwards. Keep that bottom area calm and dark (deep shadow or a dark solid band that belongs to the design), with no text, no letters, no lines, no grid and no busy detail in it.',
+    'The poster contains exactly two pieces of text, spelled exactly as written, and nothing else:',
+    `- the headline: "${name}" (the full name, exactly; never shortened)`,
+    `- the tour label: "${tourLabel}"`,
+    'No other words, letters or numbers anywhere: no taglines, no credits, no small print, no dates, no city names, no logos, no brand names, no captions.',
   ].filter(Boolean).join('\n');
 }
 
@@ -132,9 +130,9 @@ export const posterFile = (hash) => (/^[a-f0-9]{20}$/.test(hash) ? resolve(CACHE
 
 /** Returns { hash, cached, model } once the art exists on disk. Throws with a status when it cannot be made. */
 export async function posterArt({ entityId, name, description, kind, genres, themes, cities, stops = [], photo, lang = 'en', beforeGenerate, llm, onStage = () => {} }) {
-  const hash = hashOf({ v: 7, entityId, kind, genres, themes, cities, stops, lang }); // one poster per act, tour and language
+  const hash = hashOf({ v: 8, entityId, kind, genres, themes, cities, stops, lang }); // one poster per act, tour and language
   const file = posterFile(hash);
-  if (existsSync(file)) return { hash, cached: true, model: null, full: true };
+  if (existsSync(file)) { let direction = null; try { direction = JSON.parse(readFileSync(file.replace(/\.png$/, '.json'), 'utf8')).direction; } catch { /* older poster */ } return { hash, cached: true, model: null, full: true, band: true, direction }; }
   const key = imageKey(); const model = await imageModel();
   if (!key || !model) throw Object.assign(new Error('No image model is available on this server.'), { status: 503, code: 'no_image_model' });
   if (/^imagen/.test(model)) throw Object.assign(new Error('This image model cannot lay out a full poster.'), { status: 503, code: 'no_image_model' });
@@ -149,7 +147,7 @@ export async function posterArt({ entityId, name, description, kind, genres, the
   if (/^[0-9A-F-]{36}$/i.test(photo || '')) {
     try { const pr = await fetch(`https://images.qloo.com/i/${photo}-1080x-auto.jpg`, { signal: AbortSignal.timeout(15000) }); if (pr.ok) photoPart = { inlineData: { mimeType: 'image/jpeg', data: Buffer.from(await pr.arrayBuffer()).toString('base64') } }; } catch { /* no photo: the poster is designed without it */ }
   }
-  const prompt = fullPosterPrompt(dir, { name, lines, footer, hasPhoto: !!photoPart, tourLabel, tickets });
+  const prompt = fullPosterPrompt(dir, { name, hasPhoto: !!photoPart, tourLabel });
   const paint = async () => {
     const r = await fetch(`${API}/models/${model}:generateContent`, {
       method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
@@ -162,15 +160,14 @@ export async function posterArt({ entityId, name, description, kind, genres, the
     if (!b64) throw Object.assign(new Error('The image model returned no picture (it may have declined the request).'), { status: 502, code: 'image_empty' });
     return b64;
   };
-  // paint, proofread the text, paint once more if a word is wrong
+  // One image, no retries (owner, 30 Oct). The model only sets the two big lines; the app sets the date block,
+  // the ticket line and the footer in the reserved bottom area, so small text is always exact.
   onStage('painting');
-  let b64 = await paint();
-  onStage('proofreading');
-  let check = await checkText(llm, b64, [name, tourLabel, ...lines, tickets, footer]);
-  for (let tries = 0; !check.ok && tries < 2; tries++) { onStage('repainting'); const again = await paint(); onStage('proofreading'); const c2 = await checkText(llm, again, [name, tourLabel, ...lines, tickets, footer]); const score = (c) => (c.missing?.length || 0) * 3 + (c.extra?.length || 0); if (c2.ok || c2.skipped || score(c2) < score(check)) { b64 = again; check = c2; } }
+  const b64 = await paint();
   mkdirSync(CACHE, { recursive: true });
   writeFileSync(file, Buffer.from(b64, 'base64'));
-  return { hash, cached: false, model, full: true, direction: dir, proofread: check };
+  writeFileSync(file.replace(/\.png$/, '.json'), JSON.stringify({ direction: dir }));
+  return { hash, cached: false, model, full: true, band: true, direction: dir };
 }
 
 export const readPoster = (hash) => { const f = posterFile(hash); return f && existsSync(f) ? readFileSync(f) : null; };

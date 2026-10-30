@@ -44,6 +44,7 @@
     'national heatmap call': 'appel heatmap national',
     'rejected parameters': 'paramètre rejeté',
     'New tour': 'Nouvelle tournée',
+    'Tickets soon': 'Billetterie bientôt',
     'How it works': 'Fonctionnement',
     'Demos': 'Démos',
     'Home sections': 'Sections de l’accueil',
