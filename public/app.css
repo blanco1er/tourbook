@@ -917,3 +917,19 @@ html.map-open, html.map-open body { overflow: hidden; }
 @keyframes bump { 40% { transform: scale(1.18); } }
 .lv-stage summary { min-height: 40px; }
 @media (max-width: 699px) { .lv-line { font-size: 14px; padding: 3px 0; } }
+
+/* ---- Owner, 30 Oct: the earlier card (step bar, step in words, small technical lines), and the whole window folds ---- */
+.live .steps { display: grid !important; }
+.live .live-now, .live .lv-stages { display: none !important; }
+.live .live-log { display: none !important; }
+.live.is-open .live-log { display: grid !important; }
+.live .step-label { display: block !important; margin: 0; font: var(--weight-medium) 14px/1.3 var(--font-sans); color: var(--label); }
+@media (min-width: 700px) { .live .step-label { display: none !important; } }
+button.live-head { width: 100%; padding: 0; border: 0; background: none; text-align: left; cursor: pointer; font: inherit; color: inherit; min-height: 32px; }
+.live-chev { flex: none; width: 14px; height: 14px; color: var(--label-tertiary); transition: transform .2s; }
+.live.is-open .live-chev { transform: rotate(90deg); }
+.live .live-log { font: 12px/1.5 var(--font-mono, ui-monospace, monospace); padding: 10px 12px; gap: 1px; }
+.live .live-log li { padding: 1px 0; border: 0; opacity: 1; }
+.live .live-log li + li { border-top: 0; }
+.live .live-log li:nth-child(n) { display: flex; opacity: 1; }
+.live .live-log li em { font-size: 11.5px; }

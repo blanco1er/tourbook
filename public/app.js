@@ -78,6 +78,7 @@ for (const ev of ['gesturestart', 'gesturechange']) document.addEventListener(ev
 
 function bindUi() {
   bindTabs(); bindAsk(); bindRooms();
+  $('#liveToggle').addEventListener('click', () => setLiveOpen(!$('#live').classList.contains('is-open')));
   document.addEventListener('click', (e) => {
     const nav = e.target.closest('[data-nav]');
     if (nav) { e.preventDefault(); setView(nav.dataset.nav); return; }
@@ -230,7 +231,7 @@ function run(input, { rid, keepView = false, demoIndex } = {}) {
   $('#planError').hidden = true; $('#stats').hidden = true; $('#planToggle').hidden = true;
   $('#planToggle input[value="qloo"]').checked = true; $('#planToggle input[value="qloo"]').dispatchEvent(new Event('change', { bubbles: true }));
   $('#summary').innerHTML = `<strong>${t('Planning {artist}.', { artist: esc(input.artist) })}</strong> <span class="muted" id="thought">${t('Every step and every Qloo request shows up as it happens.')}</span>`;
-  $('#live').hidden = false; $('#liveLog').innerHTML = ''; $('#steps').innerHTML = ''; $('#lvStages').innerHTML = ''; $('#liveNow').hidden = false; setNow(t('Connecting to the agent…'));
+  $('#live').hidden = false; setLiveOpen(!matchMedia('(max-width: 699px)').matches); $('#liveLog').innerHTML = ''; $('#steps').innerHTML = ''; $('#lvStages').innerHTML = ''; $('#liveNow').hidden = false; setNow(t('Connecting to the agent…'));
   S.cityWork = {}; S.readyIds = [];
   clearInterval(S.liveTimer); const t0 = Date.now();
   const tick = () => { const el = $('#liveMeta'); if (el) el.innerHTML = `${Math.round((Date.now() - t0) / 1000)} s · <b class="live-n">${S.calls.length}</b> ${t((LANG === 'fr' ? S.calls.length <= 1 : S.calls.length === 1) ? 'Qloo request' : 'Qloo requests')}`; };
@@ -265,6 +266,7 @@ function run(input, { rid, keepView = false, demoIndex } = {}) {
       if (d.stage) setStep(d.stage);
       setNow(toolPhrase(d));
       lvLine(d, 'start');
+      liveLine('tool', `<b>${esc(d.name)}</b><span>${esc(argSummary(d.args))}</span>`);
       cityWork(d, 'start');
       agentLine({ kind: 'tool', d });
     }
@@ -278,7 +280,8 @@ function run(input, { rid, keepView = false, demoIndex } = {}) {
     if (d.status === 'start') return;
     S.calls.push(d);
     const ok = d.status === 'ok';
-    liveLine(ok ? 'call' : 'err', `<b class="lf-k">${ok ? esc(callKind(d)) : esc(String(d.status).toUpperCase())}</b><span>${esc(callWhat(d))}</span><em>${d.cache === 'hit' ? t('cached') : `${d.ms ?? ''} ms`}</em>`);
+    const ft = d.params?.['filter.type'] ? ` ${d.params['filter.type'].replace('urn:entity:', '')}` : '';
+    liveLine(ok ? 'call' : 'err', `<b>${ok ? 'GET' : esc(String(d.status).toUpperCase())}</b><span>${esc(d.path)}${esc(ft)}</span><em>${d.ms ?? ''} ms</em>`);
     S.liveTick?.(); $('#liveMeta .live-n')?.classList.add('is-bump');
     agentLine({ kind: 'call', d });
     lvCall(d);
@@ -480,11 +483,12 @@ function liveLine(kind, html) {
   const li = document.createElement('li');
   li.className = `is-${kind}`;
   li.innerHTML = kind === 'thought' ? esc(html) : html;
-  log.prepend(li);
-  while (log.children.length > 4) log.lastElementChild.remove();
-  spring(li, [{ opacity: 0, transform: 'translateY(-10px)' }, { opacity: 1, transform: 'none' }], { preset: 'quick', fill: 'none' });
+  log.append(li);
+  while (log.children.length > 6) log.firstElementChild.remove();
+  spring(li, [{ opacity: 0.35, transform: 'translateY(4px)' }, { opacity: 1, transform: 'none' }], { preset: 'quick', fill: 'none' });
 }
 // The sentence under the progress bar: what the agent is doing now, swapped with a short slide.
+function setLiveOpen(open) { $('#live').classList.toggle('is-open', open); $('#liveToggle').setAttribute('aria-expanded', String(open)); }
 function setNow(text) {
   const box = $('#liveNow'); if (!box || !text || box.dataset.text === text) return;
   box.dataset.text = text;

@@ -122,12 +122,12 @@
           </div>
 
           <div class="live" id="live" hidden>
-            <div class="live-head"><span class="live-dot" aria-hidden="true"></span><b>Agent at work</b><span class="live-meta" id="liveMeta"></span></div>
+            <button class="live-head" type="button" id="liveToggle" aria-expanded="true" aria-controls="liveLog"><span class="live-dot" aria-hidden="true"></span><b>Agent at work</b><span class="live-meta" id="liveMeta"></span><svg class="ui-icon live-chev" aria-hidden="true"><use href="#i-chev-r"/></svg></button>
             <ol class="steps" id="steps" aria-label="Agent progress"></ol>
             <p class="step-label" id="stepLabel" aria-hidden="true"></p>
             <p class="live-now" id="liveNow" aria-live="polite"><span>Connecting to the agent…</span></p>
-            <ol class="lv-stages" id="lvStages" aria-label="What the agent is doing"></ol>
-            <ul class="live-log" id="liveLog" aria-label="Latest agent actions" hidden></ul>
+            <ol class="lv-stages" id="lvStages" aria-label="What the agent is doing" hidden></ol>
+            <ul class="live-log" id="liveLog" aria-label="Latest agent actions"></ul>
           </div>
 
           <div class="ui-banner ui-banner--critical" id="planError" role="alert" hidden>
