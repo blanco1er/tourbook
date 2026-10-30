@@ -1,6 +1,7 @@
 // Tourbook server: Express API + static single-page frontend.
 // The browser never talks to Qloo or the LLM directly: keys stay server-side (kit rule).
 import express from 'express';
+import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { config } from './src/config.js';
@@ -202,7 +203,7 @@ app.get('/api/photo/:id', async (req, res) => {
     res.set({ 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=86400' }).send(Buffer.from(await r.arrayBuffer()));
   } catch { res.status(502).end(); }
 });
-const posters = new Map(); let postersToday = { day: '', n: 0 };
+const posters = new Map(); const posterJobs = new Map(); let postersToday = { day: '', n: 0 };
 const POSTERS_PER_IP = Number(process.env.POSTERS_PER_IP_PER_DAY || 4), POSTERS_PER_DAY = Number(process.env.POSTERS_PER_DAY || 50);
 app.get('/api/poster/status', wrap(async (req, res) => res.json({ model: await imageModel() })));
 app.post('/api/poster', wrap(async (req, res) => {
@@ -218,10 +219,22 @@ app.post('/api/poster', wrap(async (req, res) => {
     if ((posters.get(key) || 0) >= POSTERS_PER_IP) throw Object.assign(new Error('Daily poster limit reached for this address.'), { status: 429 });
     if (postersToday.n >= POSTERS_PER_DAY) throw Object.assign(new Error('Daily poster limit reached on this server.'), { status: 429 });
   };
-  const out = await posterArt({ ...input, beforeGenerate: reserve, llm });
-  if (!out.cached) { posters.set(key, (posters.get(key) || 0) + 1); postersToday.n++; if (posters.size > 5000) posters.clear(); }
-  res.json({ url: `/api/poster/${out.hash}.png`, cached: out.cached, model: out.model, full: !!out.full, direction: out.direction || null, proofread: out.proofread || null });
+  // A job the page polls: it reports the real stage, and it survives the iPhone pausing the page mid-way.
+  const id = randomUUID(); const job = { stage: 'start', at: Date.now() }; posterJobs.set(id, job);
+  posterArt({ ...input, beforeGenerate: reserve, llm, onStage: (stage) => { job.stage = stage; job.stageAt = Date.now(); } })
+    .then((out) => {
+      if (!out.cached) { posters.set(key, (posters.get(key) || 0) + 1); postersToday.n++; if (posters.size > 5000) posters.clear(); }
+      Object.assign(job, { stage: 'done', result: { url: `/api/poster/${out.hash}.png`, cached: out.cached, model: out.model, full: !!out.full, direction: out.direction || null, proofread: out.proofread || null } });
+    })
+    .catch((e) => Object.assign(job, { stage: 'error', error: e.message, code: e.code, status: e.status || 502 }));
+  for (const [k, j] of posterJobs) if (Date.now() - j.at > 15 * 60 * 1000) posterJobs.delete(k);
+  res.status(202).json({ job: id });
 }));
+app.get('/api/poster/job/:id', (req, res) => {
+  const j = posterJobs.get(req.params.id);
+  if (!j) return res.status(404).json({ error: 'Unknown poster job.' });
+  res.json({ stage: j.stage, stageMs: Date.now() - (j.stageAt || j.at), ...(j.result || {}), ...(j.stage === 'error' ? { error: j.error, code: j.code, status: j.status } : {}) });
+});
 app.get('/api/poster/:hash.png', (req, res) => {
   const buf = readPoster(req.params.hash);
   if (!buf) return res.status(404).end();

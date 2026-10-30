@@ -131,7 +131,7 @@ const hashOf = (o) => createHash('sha1').update(JSON.stringify(o)).digest('hex')
 export const posterFile = (hash) => (/^[a-f0-9]{20}$/.test(hash) ? resolve(CACHE, `${hash}.png`) : null);
 
 /** Returns { hash, cached, model } once the art exists on disk. Throws with a status when it cannot be made. */
-export async function posterArt({ entityId, name, description, kind, genres, themes, cities, stops = [], photo, lang = 'en', beforeGenerate, llm }) {
+export async function posterArt({ entityId, name, description, kind, genres, themes, cities, stops = [], photo, lang = 'en', beforeGenerate, llm, onStage = () => {} }) {
   const hash = hashOf({ v: 7, entityId, kind, genres, themes, cities, stops, lang }); // one poster per act, tour and language
   const file = posterFile(hash);
   if (existsSync(file)) return { hash, cached: true, model: null, full: true };
@@ -139,6 +139,7 @@ export async function posterArt({ entityId, name, description, kind, genres, the
   if (!key || !model) throw Object.assign(new Error('No image model is available on this server.'), { status: 503, code: 'no_image_model' });
   if (/^imagen/.test(model)) throw Object.assign(new Error('This image model cannot lay out a full poster.'), { status: 503, code: 'no_image_model' });
   beforeGenerate?.(); // daily caps are checked only when a new image would be paid for
+  onStage('direction');
   const dir = await artDirection(llm, { name, kind, genres, description, themes });
   const lines = (stops.length ? stops : cities).map((c, i) => `${String(i + 1).padStart(2, '0')}  ${c}`);
   const footer = lang === 'fr' ? 'Tracée selon le goût avec Qloo' : 'Routed by taste with Qloo';
@@ -162,9 +163,11 @@ export async function posterArt({ entityId, name, description, kind, genres, the
     return b64;
   };
   // paint, proofread the text, paint once more if a word is wrong
+  onStage('painting');
   let b64 = await paint();
+  onStage('proofreading');
   let check = await checkText(llm, b64, [name, tourLabel, ...lines, tickets, footer]);
-  for (let tries = 0; !check.ok && tries < 2; tries++) { const again = await paint(); const c2 = await checkText(llm, again, [name, tourLabel, ...lines, tickets, footer]); const score = (c) => (c.missing?.length || 0) * 3 + (c.extra?.length || 0); if (c2.ok || c2.skipped || score(c2) < score(check)) { b64 = again; check = c2; } }
+  for (let tries = 0; !check.ok && tries < 2; tries++) { onStage('repainting'); const again = await paint(); onStage('proofreading'); const c2 = await checkText(llm, again, [name, tourLabel, ...lines, tickets, footer]); const score = (c) => (c.missing?.length || 0) * 3 + (c.extra?.length || 0); if (c2.ok || c2.skipped || score(c2) < score(check)) { b64 = again; check = c2; } }
   mkdirSync(CACHE, { recursive: true });
   writeFileSync(file, Buffer.from(b64, 'base64'));
   return { hash, cached: false, model, full: true, direction: dir, proofread: check };

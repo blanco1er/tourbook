@@ -1850,6 +1850,14 @@ async function drawPoster() {
 }
 // While the artwork is painted (owner, 30 Oct): a living dot grid on black, a soft swell drifting through it, and a
 // percentage. The percentage is an estimate from the usual generation time; it only passes 95 % when the image is in.
+const POSTER_STAGE = {
+  start: { from: 1, to: 6, tau: 2, label: 'Starting…' },
+  direction: { from: 6, to: 16, tau: 4, label: 'Choosing the art direction…' },
+  painting: { from: 16, to: 72, tau: 22, label: 'Composing the poster…' },
+  proofreading: { from: 72, to: 90, tau: 5, label: 'Proofreading the text…' },
+  repainting: { from: 76, to: 96, tau: 24, label: 'Fixing a word, painting again…' },
+  done: { from: 100, to: 100, tau: 1, label: 'Ready' },
+};
 function startDots() {
   const c = $('#posterDots'); const box = c.parentElement; const dpr = Math.min(2, devicePixelRatio || 1);
   const W = box.clientWidth, H = box.clientHeight; c.width = W * dpr; c.height = H * dpr; c.style.width = `${W}px`; c.style.height = `${H}px`;
@@ -1868,7 +1876,11 @@ function startDots() {
       const r = 0.6 + v * gap * 0.28; x.beginPath(); x.arc(xx, yy, r, 0, Math.PI * 2);
       x.fillStyle = `rgba(255,255,255,${0.16 + v * 0.7})`; x.fill();
     }
-    if (!S.dotsDone) S.dotsPct = Math.min(95, 95 * (1 - Math.exp(-t / 13)));
+    if (!S.dotsDone) { // within the real stage, move toward its end; never jump back, never sit still
+      const st = POSTER_STAGE[S.posterStage] || POSTER_STAGE.start; const dt = (now - (S.posterStageAt || t0)) / 1000;
+      const est = st.from + (st.to - st.from) * (1 - Math.exp(-dt / st.tau));
+      S.dotsPct = Math.max(S.dotsPct || 0, Math.min(99, est));
+    }
     const pct = Math.round(S.dotsPct); const el = $('#posterPct'); el.textContent = `${pct} %`; el.setAttribute('aria-valuenow', pct);
     S.dotsRaf = requestAnimationFrame(frame);
   };
@@ -1883,18 +1895,29 @@ function stopDots() {
 }
 async function makePosterArt() {
   const b = S.book; if (!b || S.posterBusy) return;
+  S.posterStage = 'start'; S.posterStageAt = performance.now(); $('.poster-row').hidden = true;
   S.posterBusy = true; const btn = $('#posterArtBtn'); btn.disabled = true; const label = btn.querySelector('span').textContent; btn.querySelector('span').textContent = t('Artwork in progress…');
   $('#posterBusy').hidden = false; $('#posterBusyText').textContent = t('Artwork for {name}', { name: b.artist.selected.name }); startDots();
   const themes = [...new Set((b.dates || []).flatMap((d) => (d.crowd_brief?.themes || []).map((x) => x.name)))].slice(0, 8);
   try {
-    const r = await fetch('/api/poster', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ entityId: b.artist.selected.id, name: b.artist.selected.name, description: b.artist.selected.description || '', kind: S.input?.type || 'artist', genres: S.act?.genres || [], themes, cities: tourStops().map((s) => s.name), stops: tourStops().map((s) => { const v = (b.dates || []).find((d) => d.market?.id === s.id)?.venue?.picks?.[0]?.name; return `${s.name}, ${s.state}${v ? ` · ${v}` : ''}`; }), photo: S.act?.photo || b.artist.selected.photo || null, lang: LANG }) });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw Object.assign(new Error(j.error || `HTTP ${r.status}`), { code: j.code });
+    const r0 = await fetch('/api/poster', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ entityId: b.artist.selected.id, name: b.artist.selected.name, description: b.artist.selected.description || '', kind: S.input?.type || 'artist', genres: S.act?.genres || [], themes, cities: tourStops().map((s) => s.name), stops: tourStops().map((s) => { const v = (b.dates || []).find((d) => d.market?.id === s.id)?.venue?.picks?.[0]?.name; return `${s.name}, ${s.state}${v ? ` · ${v}` : ''}`; }), photo: S.act?.photo || b.artist.selected.photo || null, lang: LANG }) });
+    const j0 = await r0.json().catch(() => ({}));
+    if (!r0.ok) throw Object.assign(new Error(j0.error || `HTTP ${r0.status}`), { code: j0.code });
+    // poll the job: the real stage drives the caption and the percentage
+    let j;
+    for (;;) {
+      await new Promise((ok) => setTimeout(ok, 1000));
+      const r = await fetch(`/api/poster/job/${j0.job}`); j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+      if (j.stage === 'error') throw Object.assign(new Error(j.error), { code: j.code });
+      if (j.stage !== S.posterStage) { S.posterStage = j.stage; S.posterStageAt = performance.now() - (j.stageMs || 0); const cap = POSTER_STAGE[j.stage]; if (cap) $('#posterBusyText').textContent = t(cap.label); }
+      if (j.stage === 'done') break;
+    }
     S.posterArt = j.url; S.posterFull = !!j.full; btn.hidden = true; if (isSaved()) saveTour({ quiet: true });
     await drawPoster();
   } catch (e) {
     toast({ title: e.code === 'no_image_model' ? t('No image model on this server') : t('The artwork could not be made'), detail: e.code === 'no_image_model' ? t('The poster keeps its typographic version.') : t(e.message) });
-  } finally { S.posterBusy = false; btn.disabled = false; btn.querySelector('span').textContent = label; await stopDots(); $('#posterBusy').hidden = true; }
+  } finally { S.posterBusy = false; btn.disabled = false; btn.querySelector('span').textContent = label; await stopDots(); $('#posterBusy').hidden = true; $('.poster-row').hidden = false; S.posterStage = null; }
 }
 function sharePoster(share) {
   const slug = (S.book?.artist?.selected?.name || 'tour').toLowerCase().replace(/[^a-z0-9]+/g, '-');

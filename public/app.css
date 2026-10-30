@@ -1229,3 +1229,4 @@ button.live-head { width: 100%; padding: 0; border: 0; background: none; text-al
 
 .map-title .scan-n { display: inline-block; min-width: 2ch; text-align: right; font-weight: inherit; font-variant-numeric: tabular-nums; }
 @media (max-width: 699px) { #toolbar:has(#homeBtn:not([hidden])) .lang-pill { display: none; } } /* phone, on a plan: the language switch lives on the home screen */
+.poster-row[hidden] { display: none !important; }
