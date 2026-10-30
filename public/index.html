@@ -43,6 +43,7 @@
   <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M8 11l4 4 4-4"/><path d="M5 19.5h14"/></symbol>
   <symbol id="i-image" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><circle cx="9" cy="10" r="1.8"/><path d="m20.5 15.5-5-5-9 9"/></symbol>
   <symbol id="i-bookmark" viewBox="0 0 24 24"><path d="M6.5 4.5h11v15.5L12 16l-5.5 4z"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
   <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.4"/></symbol>
   <symbol id="i-route" viewBox="0 0 24 24"><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="6" r="2.2"/><path d="M8 18h7.5a3.5 3.5 0 0 0 0-7h-7a3.5 3.5 0 0 1 0-7H16"/></symbol>
   <symbol id="i-x" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
@@ -70,6 +71,7 @@
       <button class="ui-nav-item" type="button" data-nav="plan" aria-current="page"><svg class="ui-icon"><use href="#i-map"/></svg>Tour plan</button>
       <button class="ui-nav-item" type="button" data-nav="agent"><svg class="ui-icon"><use href="#i-agent"/></svg>Agent<span class="ui-nav-item__count" data-agent-count></span></button>
       <button class="ui-nav-item" type="button" data-nav="rooms"><svg class="ui-icon"><use href="#i-room"/></svg>Room mode</button>
+      <button class="ui-nav-item" type="button" data-nav="history"><svg class="ui-icon"><use href="#i-clock"/></svg>History</button>
 
       <div class="ui-sidebar__heading">Demo acts</div>
       <div id="sideDemos" class="side-demos"></div>
@@ -94,7 +96,7 @@
         <p class="ui-footnote ui-secondary" id="tbSub">Route a tour by taste, not population</p>
       </div>
       <nav class="ui-tabs-top ui-glass" aria-label="Views">
-        <a href="#plan" data-nav="plan" aria-current="page">Plan</a><a href="#agent" data-nav="agent">Agent</a><a href="#rooms" data-nav="rooms">Rooms</a>
+        <a href="#plan" data-nav="plan" aria-current="page">Plan</a><a href="#agent" data-nav="agent">Agent</a><a href="#rooms" data-nav="rooms">Rooms</a><a href="#history" data-nav="history">History</a>
       </nav>
       <div class="ui-toolbar__group ui-glass" id="planTools" hidden>
         <button class="ui-icon-button" type="button" id="voiceBtn" aria-label="Play the voice briefing" title="Voice briefing" hidden><svg class="ui-icon"><use href="#i-speaker"/></svg></button>
@@ -174,14 +176,9 @@
         <div class="when-empty">
           <!-- Home (30 Oct): one section at a time under the map, chosen from horizontal tabs -->
           <nav class="result-tabs home-tabs" id="homeTabs" role="tablist" aria-label="Home sections">
-            <button type="button" role="tab" id="htab-saved" aria-controls="hpanel-saved" aria-selected="false" data-htab="saved" hidden><span>My tours</span></button>
             <button type="button" role="tab" id="htab-demos" aria-controls="hpanel-demos" aria-selected="true" data-htab="demos"><span>Demos</span></button>
             <button type="button" role="tab" id="htab-how" aria-controls="hpanel-how" aria-selected="false" data-htab="how"><span>How it works</span></button>
           </nav>
-          <section class="ui-list-section home-panel saved-block" role="tabpanel" id="hpanel-saved" aria-labelledby="htab-saved" data-hpanel="saved" hidden>
-            <div class="ui-list__header"><span id="savedNote"></span></div>
-            <ul class="ui-list saved-list" id="savedList"></ul>
-          </section>
           <section class="ui-list-section home-panel" role="tabpanel" id="hpanel-demos" aria-labelledby="htab-demos" data-hpanel="demos">
             <div class="ui-list__header"><span id="demoActsNote">One tap each</span></div>
             <ul class="ui-list" id="bodyDemos"></ul>
@@ -302,6 +299,24 @@
       </section>
 
       <!-- ===================== ROOM MODE ===================== -->
+      <!-- ===================== HISTORY (30 Oct) ===================== -->
+      <section class="view page" id="view-history" data-view="history" hidden aria-labelledby="tbTitle">
+        <nav class="result-tabs home-tabs" id="histTabs" role="tablist" aria-label="History">
+          <button type="button" role="tab" aria-selected="true" data-hist="tours"><span>Tours</span></button>
+          <button type="button" role="tab" aria-selected="false" data-hist="rooms"><span>Rooms</span></button>
+        </nav>
+        <section class="ui-list-section home-panel" data-histpanel="tours">
+          <div class="ui-list__header"><span id="savedNote"></span></div>
+          <ul class="ui-list saved-list" id="savedList"></ul>
+          <div class="ui-empty" id="savedEmpty" hidden><span class="ui-empty__icon"><svg class="ui-icon"><use href="#i-bookmark"/></svg></span><h3>No saved tours yet</h3><p>Plan a tour, then tap the bookmark at the top. Validating a tour saves it too.</p></div>
+        </section>
+        <section class="ui-list-section home-panel" data-histpanel="rooms" hidden>
+          <div class="ui-list__header"><span id="roomsNote"></span></div>
+          <ul class="ui-list saved-list" id="roomsHist"></ul>
+          <div class="ui-empty" id="roomsEmpty" hidden><span class="ui-empty__icon"><svg class="ui-icon"><use href="#i-room"/></svg></span><h3>No room searches yet</h3><p>Every neighbourhood you search in Rooms shows up here.</p></div>
+        </section>
+      </section>
+
       <section class="view page" id="view-rooms" data-view="rooms" hidden aria-labelledby="tbTitle">
         <p class="room-lead"><strong>Who should play your room?</strong> Acts the people around you already love, before they blow up.</p>
         <form class="room-form" id="venueForm" autocomplete="off" novalidate>
@@ -336,6 +351,7 @@
       <a class="ui-tabbar__item" href="#plan" data-nav="plan" aria-current="page"><svg class="ui-icon"><use href="#i-map"/></svg>Plan</a>
       <a class="ui-tabbar__item" href="#agent" data-nav="agent"><svg class="ui-icon"><use href="#i-agent"/></svg>Agent</a>
       <a class="ui-tabbar__item" href="#rooms" data-nav="rooms"><svg class="ui-icon"><use href="#i-room"/></svg>Rooms</a>
+      <a class="ui-tabbar__item" href="#history" data-nav="history"><svg class="ui-icon"><use href="#i-clock"/></svg>History</a>
     </div>
     <button class="ui-tabbar__search ui-glass" type="button" data-new-plan aria-label="New plan"><svg class="ui-icon"><use href="#i-plus"/></svg></button>
   </nav>

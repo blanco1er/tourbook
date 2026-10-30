@@ -25,6 +25,7 @@ const VIEW_META = {
   plan: { title: 'Tour plan', sub: 'Route a tour by taste, not population' },
   agent: { title: 'Agent', sub: 'No run yet' },
   rooms: { title: 'Room mode', sub: 'For venues and promoters' },
+  history: { title: 'History', sub: 'Saved on this device' },
 };
 
 const S = {
@@ -87,7 +88,15 @@ function bindUi() {
     const del = e.target.closest('[data-unsave]'); if (del) { unsaveTour(del.dataset.unsave); return; }
     const o = e.target.closest('[data-saved]'); if (o) openSaved(o.dataset.saved);
   });
-  renderSaved();
+  renderSaved(); renderRooms();
+  $('#histTabs').addEventListener('click', (e) => { const b = e.target.closest('[role="tab"]'); if (b) setHistTab(b.dataset.hist); });
+  $('#roomsHist').addEventListener('click', (e) => {
+    const del = e.target.closest('[data-room-del]'); if (del) { const l = readRooms(); l.splice(Number(del.dataset.roomDel), 1); try { localStorage.setItem(ROOMS_KEY, JSON.stringify(l)); } catch {} renderRooms(); return; }
+    const o = e.target.closest('[data-room-hist]'); if (!o) return;
+    const x = readRooms()[Number(o.dataset.roomHist)]; if (!x) return;
+    const r = $(`#vSize input[value="${x.cap}"]`); if (r) r.checked = true; $('#vPop').value = String(x.cap);
+    $('#vHood').value = x.hood; S.venueDone = true; setView('rooms'); venueSearch();
+  });
   $('#actId').addEventListener('click', (e) => { if (e.target.closest('#whoBtn')) openWho(); });
   $('#whoList').addEventListener('click', (e) => {
     const r = e.target.closest('[data-who]'); if (!r) return;
@@ -393,7 +402,7 @@ function saveTour({ quiet = false } = {}) {
   const list = [entry, ...readSaved().filter((x) => x.id !== id)].slice(0, 12);
   const ok = writeSaved(list);
   updateSaveBtn(); renderSaved();
-  if (!quiet) toast({ title: ok ? t('Tour saved') : t('This device is out of space'), detail: ok ? t('Find it under My tours on the home screen.') : t('Delete an old tour and try again.'), tone: ok ? 'ok' : undefined });
+  if (!quiet) toast({ title: ok ? t('Tour saved') : t('This device is out of space'), detail: ok ? t('Find it in the History tab.') : t('Delete an old tour and try again.'), tone: ok ? 'ok' : undefined });
 }
 function unsaveTour(id) { writeSaved(readSaved().filter((x) => x.id !== id)); updateSaveBtn(); renderSaved(); }
 function updateSaveBtn() { const b = $('#saveBtn'); if (!b) return; const on = isSaved(); b.setAttribute('aria-pressed', String(on)); b.setAttribute('aria-label', t(on ? 'Tour saved' : 'Save this tour')); }
@@ -403,13 +412,26 @@ function setHomeTab(tab) {
   $$('.home-panel').forEach((p) => { p.hidden = p.dataset.hpanel !== tab; });
 }
 function renderSaved() {
-  const list = readSaved(); const box = $('#hpanel-saved'); if (!box) return;
-  $('#htab-saved').hidden = !list.length;
-  if (!list.length && S.homeTab === 'saved') setHomeTab('demos');
-  if (list.length && !S.homeTabPicked) setHomeTab('saved'); // open on My tours when there are some, until the user picks a tab
+  const list = readSaved();
+  $('#savedEmpty').hidden = !!list.length;
   $('#savedNote').textContent = list.length ? t('{n} on this device', { n: list.length }) : '';
   $('#savedList').innerHTML = list.map((x) => `<li><div class="saved-row"><button type="button" class="saved-open" data-saved="${esc(x.id)}">${x.photo ? `<img src="/api/photo/${x.photo}" alt="" loading="lazy">` : `<span class="saved-ph">${icon('i-map')}</span>`}<span class="saved-txt"><b>${esc(x.name)}</b><small>${esc([t('{n} stops', { n: x.stops }), x.lead, new Date(x.savedAt).toLocaleDateString(LOCALE, { day: 'numeric', month: 'short' })].filter(Boolean).join(' · '))}</small></span></button><button type="button" class="saved-del" data-unsave="${esc(x.id)}" aria-label="${esc(t('Remove {name} from my tours', { name: x.name }))}">${icon('i-x')}</button></div></li>`).join('');
 }
+// Room searches history (owner, 30 Oct): the last neighbourhoods searched, reopened in one tap.
+const ROOMS_KEY = 'tourbook:rooms';
+function readRooms() { try { return JSON.parse(localStorage.getItem(ROOMS_KEY) || '[]'); } catch { return []; } }
+function logRoom(e) { const list = [e, ...readRooms().filter((x) => !(x.hood === e.hood && x.cap === e.cap))].slice(0, 15); try { localStorage.setItem(ROOMS_KEY, JSON.stringify(list)); } catch { /* storage full */ } renderRooms(); }
+function renderRooms() {
+  const list = readRooms(); if (!$('#roomsHist')) return;
+  $('#roomsEmpty').hidden = !!list.length;
+  $('#roomsNote').textContent = list.length ? t('{n} on this device', { n: list.length }) : '';
+  $('#roomsHist').innerHTML = list.map((x, i) => `<li><div class="saved-row"><button type="button" class="saved-open" data-room-hist="${i}"><span class="saved-ph">${icon('i-pin')}</span><span class="saved-txt"><b>${esc(x.hood)}</b><small>${esc([t(SIZE_LABEL[String(x.cap)] || 'Mid-size'), t('{n} acts', { n: x.n }), x.top || '', new Date(x.at).toLocaleDateString(LOCALE, { day: 'numeric', month: 'short' })].filter(Boolean).join(' · '))}</small></span></button><button type="button" class="saved-del" data-room-del="${i}" aria-label="${esc(t('Remove'))}">${icon('i-x')}</button></div></li>`).join('');
+}
+function setHistTab(tab) {
+  $$('#histTabs [role="tab"]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.hist === tab)));
+  $$('[data-histpanel]').forEach((p) => { p.hidden = p.dataset.histpanel !== tab; });
+}
+
 function openSaved(id) {
   const x = readSaved().find((y) => y.id === id); if (!x?.book?.markets) return;
   S.es?.close(); S.running = false;
@@ -459,7 +481,6 @@ function goHome() {
   drawBaseMap();
   S.map?.fitBounds(US, { padding: mapPadding(), duration: reduceMotion() ? 0 : 700 });
   history.replaceState(null, '', `${location.pathname}${LANG === 'fr' ? '?lang=fr' : ''}`);
-  renderSaved();
   setView('plan');
   updateToolbar();
   scrollTo({ top: 0, behavior: 'auto' }); requestAnimationFrame(() => scrollTo({ top: 0, behavior: 'auto' }));
@@ -1638,6 +1659,7 @@ async function venueSearch() {
     const pops = acts.map((a) => a.popularity).sort((x, y) => x - y); const medPop = pops[Math.floor(pops.length / 2)] ?? 0;
     acts.forEach((a, i) => { a.rising = i < Math.ceil(acts.length / 2) && a.popularity <= medPop; });
     S.venueActs = acts;
+    if (acts.length) logRoom({ hood, cap, n: acts.length, top: acts[0]?.name || '', at: Date.now() });
     const rising = acts.filter((a) => a.rising).length;
     const wide = r.widenedTo ? `<div class="room-wide">${icon('i-info')}<span>${t('Not enough local signal in {hood} yet: these are the acts for {city}.', { hood: esc(hoodParts(hood)[0]), city: esc(r.widenedTo) })}</span></div>` : '';
     box.innerHTML = acts.length

@@ -1242,3 +1242,9 @@ button.live-head { width: 100%; padding: 0; border: 0; background: none; text-al
 .ui-root .home-tabs { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); overflow: visible; }
 .ui-root .home-tabs [role="tab"] { min-width: 0; justify-content: center; }
 .ui-root .home-tabs [role="tab"] span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---- History view (owner, 30 Oct) ---- */
+#view-history .home-tabs { margin-top: 4px; }
+#view-history .ui-empty { margin-top: 24px; }
+.ui-root .ui-tabbar__item { font-size: 11px; }
+.ui-root .saved-list:empty { display: none; }
