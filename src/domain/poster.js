@@ -95,12 +95,9 @@ function fullPosterPrompt(dir, { name, hasPhoto, tourLabel }) {
     dir.layout ? `Layout: ${dir.layout}.` : 'Layout: an original, bold composition specific to this act.',
     dir.typography ? `Typography: ${dir.typography}.` : '',
     hasPhoto ? `The attached image is the real photograph of ${name}. Integrate it into the design${dir.photo ? ` (${dir.photo})` : ''}. Use it as a photograph with its original framing: you may crop it, cut out its background, tint it or set it in black and white, but never extend it (no invented body, legs or pose), never redraw, restyle or replace the person, and never add any other person.` : 'No people, no faces.',
-    'It must read instantly as a concert TOUR poster: the tour label is large and prominent right under or beside the name.',
-    'RESERVED AREA: the bottom 34% of the poster is kept for the tour-date block, which is added afterwards. Keep that bottom area calm and dark (deep shadow or a dark solid band that belongs to the design), with no text, no letters, no lines, no grid and no busy detail in it.',
-    'The poster contains exactly two pieces of text, spelled exactly as written, and nothing else:',
-    `- the headline: "${name}" (the full name, exactly; never shortened)`,
-    `- the tour label: "${tourLabel}"`,
-    'No other words, letters or numbers anywhere: no taglines, no credits, no small print, no dates, no city names, no logos, no brand names, no captions.',
+    'RESERVED AREA: the bottom 34% of the poster is kept for the tour label and the tour-date block, which are added afterwards. Keep that bottom area calm and dark (deep shadow or a dark solid band that belongs to the design), completely empty: no text, no letters, no lines, no grid, no busy detail.',
+    `The ONLY text on the whole poster is the headline "${name}", spelled exactly as written (the full name, never shortened), large and strong, in the upper two thirds.`,
+    'Absolutely no other text, letters, numbers or symbols that look like text anywhere: no tour label, no taglines, no technical labels, no coordinates, no credits, no small print, no dates, no city names, no logos, no captions, no fake UI.',
   ].filter(Boolean).join('\n');
 }
 
@@ -130,7 +127,7 @@ export const posterFile = (hash) => (/^[a-f0-9]{20}$/.test(hash) ? resolve(CACHE
 
 /** Returns { hash, cached, model } once the art exists on disk. Throws with a status when it cannot be made. */
 export async function posterArt({ entityId, name, description, kind, genres, themes, cities, stops = [], photo, lang = 'en', beforeGenerate, llm, onStage = () => {} }) {
-  const hash = hashOf({ v: 8, entityId, kind, genres, themes, cities, stops, lang }); // one poster per act, tour and language
+  const hash = hashOf({ v: 9, entityId, kind, genres, themes, cities, stops, lang }); // one poster per act, tour and language
   const file = posterFile(hash);
   if (existsSync(file)) { let direction = null; try { direction = JSON.parse(readFileSync(file.replace(/\.png$/, '.json'), 'utf8')).direction; } catch { /* older poster */ } return { hash, cached: true, model: null, full: true, band: true, direction }; }
   const key = imageKey(); const model = await imageModel();
@@ -166,11 +163,11 @@ export async function posterArt({ entityId, name, description, kind, genres, the
   onStage('painting');
   let b64 = await paint();
   onStage('proofreading');
-  let check = await checkText(llm, b64, [name, tourLabel]);
+  let check = await checkText(llm, b64, [name]);
   if (!check.ok) {
     onStage('repainting');
     const again = await paint(); onStage('proofreading');
-    const c2 = await checkText(llm, again, [name, tourLabel]);
+    const c2 = await checkText(llm, again, [name]);
     const score = (c) => (c.missing?.length || 0) * 3 + (c.extra?.length || 0);
     if (c2.ok || c2.skipped || score(c2) < score(check)) { b64 = again; check = c2; }
   }

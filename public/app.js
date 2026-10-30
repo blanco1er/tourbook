@@ -1804,8 +1804,8 @@ function drawDateBlock(x, W, H, stops, font, accent) {
   try { const d = x.getImageData(0, top, W, H - top).data; let best = 1e9; for (let i = 0; i < d.length; i += 4 * 211) { const l = d[i] + d[i + 1] + d[i + 2]; if (l < best) { best = l; base = [d[i], d[i + 1], d[i + 2]]; } } } catch { /* keep black */ }
   base = base.map((v) => Math.round(v * 0.55));
   const rgb = (a) => `rgba(${base.join(',')},${a})`;
-  const g = x.createLinearGradient(0, top - 90, 0, top + 30); g.addColorStop(0, rgb(0)); g.addColorStop(1, rgb(1));
-  x.fillStyle = g; x.fillRect(0, top - 90, W, 120); x.fillStyle = rgb(1); x.fillRect(0, top + 30, W, H - top - 30);
+  const g = x.createLinearGradient(0, top - 120, 0, top - 40); g.addColorStop(0, rgb(0)); g.addColorStop(1, rgb(1));
+  x.fillStyle = g; x.fillRect(0, top - 120, W, 80); x.fillStyle = rgb(1); x.fillRect(0, top - 40, W, H - top + 40);
   const caps = /upper|caps|capital/i.test(S.posterDir?.typography || '');
   const cond = /condens|compress|narrow/i.test(S.posterDir?.typography || '');
   // numbers and ticket line: the art's accent, lifted until it reads on the dark band
@@ -1816,11 +1816,16 @@ function drawDateBlock(x, W, H, stops, font, accent) {
   const rows = stops.map((s, i) => { const v = dates.find((d) => d.market?.id === s.id)?.venue?.picks?.[0]?.name; return { n: String(i + 1).padStart(2, '0'), city: `${s.name}, ${s.state}`, venue: v || '' }; });
   const two = rows.length > 5; const per = two ? Math.ceil(rows.length / 2) : rows.length;
   const L = 64, R = W - 64, colW = two ? (R - L - 40) / 2 : R - L;
-  const avail = H - 150 - (top + 18); const rowH = Math.min(two ? 62 : 74, avail / per);
-  const citySize = Math.round(Math.min(two ? 30 : 38, rowH * 0.5)); const venueSize = Math.round(citySize * 0.62);
+  // the tour label, large, at the top of the band (set by the app so it is never cut or misspelled)
+  const lab = t('North American tour').toUpperCase(); let ls = 64; x.font = `800 ${ls}px ${font}`;
+  while (x.measureText(lab).width > R - L && ls > 30) { ls -= 2; x.font = `800 ${ls}px ${font}`; }
+  x.fillStyle = '#FFFFFF'; x.textBaseline = 'alphabetic'; x.fillText(lab, L, top + 6 + ls * 0.8);
+  const listTop = top + 6 + ls + 30;
+  const avail = H - 150 - listTop; const rowH = Math.min(two ? 56 : 64, avail / per);
+  const citySize = Math.round(Math.min(two ? 28 : 34, rowH * 0.52)); const venueSize = Math.round(citySize * 0.62);
   x.textBaseline = 'alphabetic';
   rows.forEach((row, i) => {
-    const col = two && i >= per ? 1 : 0; const X = L + col * (colW + 40); const Y = top + 18 + (i - col * per) * rowH + citySize;
+    const col = two && i >= per ? 1 : 0; const X = L + col * (colW + 40); const Y = listTop + (i - col * per) * rowH + citySize;
     x.strokeStyle = 'rgba(255,255,255,.22)'; x.lineWidth = 1.5; x.beginPath(); x.moveTo(X, Y - citySize - 10); x.lineTo(X + colW, Y - citySize - 10); x.stroke();
     x.fillStyle = ac; x.font = `700 ${Math.round(citySize * 0.72)}px ${font}`; x.fillText(row.n, X, Y);
     const cx = X + citySize * 1.55;
