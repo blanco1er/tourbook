@@ -992,7 +992,7 @@ function quietStyle() {
   if (!S.map.getSource('heat')) S.map.addSource('heat', { type: 'geojson', data: heatData() });
   if (!S.map.getLayer('heat')) S.map.addLayer({ id: 'heat', type: 'heatmap', source: 'heat', paint: heatPaint(0) });
   if (!S.map.getSource('route')) S.map.addSource('route', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-  const ink = isDark() ? '#FDE6D6' : '#6B3A22', glow = isDark() ? '#FF8A4C' : '#EA6A2A';
+  const ink = isDark() ? '#F5F5F7' : '#2C2C2E', glow = isDark() ? '#FF8A4C' : '#EA6A2A'; // route in neutral ink, like the stop badges
   if (!S.map.getLayer('route-glow')) S.map.addLayer({ id: 'route-glow', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': glow, 'line-width': 9, 'line-blur': 7, 'line-opacity': isDark() ? 0.55 : 0.35 } });
   if (!S.map.getLayer('route')) S.map.addLayer({ id: 'route', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': ink, 'line-width': 2.2, 'line-opacity': 0.9 } });
   // The tour pulse: a point that keeps travelling the route, stop to stop.
@@ -1121,7 +1121,7 @@ function addMarker(m, { size, bg, label = '', rank = 0, score = null, minor = fa
   el.dataset.size = size; if (rank) el.dataset.rank = rank; if (m.id) el.dataset.id = m.id;
   el.style.setProperty('--sd', `${Math.round(((m.lng + 125) / 58) * 1800)}ms`);
   const ink = luminance(bg) > 0.55 ? '#1D1D1F' : '#fff';
-  const tag = label ? `<div class="lbl">${rank ? `<i style="background:${bg};color:${ink}">${rank}</i>` : ''}<span>${esc(label)}</span>${score != null ? `<b>${score}</b>` : ''}</div>` : '';
+  const tag = label ? `<div class="lbl">${rank ? `<i>${rank}</i>` : ''}<span>${esc(label)}</span>${score != null ? `<b>${score}</b>` : ''}</div>` : '';
   el.innerHTML = `<div class="dot" style="width:${size}px;height:${size}px;background:${bg}"></div>${tag}`;
   el.tabIndex = minor ? -1 : 0;
   el.setAttribute('role', 'button');
@@ -1142,7 +1142,8 @@ function mix(a, b, t) {
   return `#${x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, '0')).join('')}`;
 }
 // One warm orange scale: the stronger the market (Hidden Market Score), the deeper the colour (light mode) or the brighter (dark mode).
-const tasteColor = (h) => { const t = Math.max(0, Math.min(1, (h - 35) / 60)); return isDark() ? mix('#B23F0C', '#FF9A62', t) : mix('#F7C9A9', '#6B3A22', t); };
+// Clean orange, no brown (owner, 30 Oct): light peach for a weaker market, deep vivid orange for a stronger one.
+const tasteColor = (h) => { const t = Math.max(0, Math.min(1, (h - 35) / 60)); return isDark() ? mix('#9A3412', '#FF8A4C', t) : mix('#FBC7A4', '#C2410C', t); };
 const greyDot = () => (isDark() ? '#636366' : '#AEAEB2');
 
 function drawBaseMap() {

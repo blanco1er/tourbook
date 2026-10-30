@@ -1190,3 +1190,6 @@ button.live-head { width: 100%; padding: 0; border: 0; background: none; text-al
 @keyframes ping { 0% { opacity: .9; transform: scale(.2); } 100% { opacity: 0; transform: scale(1); } }
 @keyframes pinged { 0% { background: #00C853; box-shadow: 0 0 0 0 rgba(0,200,83,.5), 0 0 14px rgba(0,200,83,.75); } 60% { background: #00C853; box-shadow: 0 0 0 5px rgba(0,200,83,0), 0 0 10px rgba(0,200,83,.35); } 100% { box-shadow: none; } }
 @media (prefers-reduced-motion: reduce) { .mk.is-minor.is-ping::after { animation: none; } }
+
+/* Map labels: the stop number in a neutral black badge (white in dark mode); the dot keeps the data colour */
+.ui-root .mk .lbl i { background: light-dark(#1D1D1F, #F5F5F7) !important; color: light-dark(#FFFFFF, #1D1D1F) !important; }
