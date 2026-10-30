@@ -1248,3 +1248,7 @@ button.live-head { width: 100%; padding: 0; border: 0; background: none; text-al
 #view-history .ui-empty { margin-top: 24px; }
 .ui-root .ui-tabbar__item { font-size: 11px; }
 .ui-root .saved-list:empty { display: none; }
+/* Map switch (owner, 30 Oct: too big): a compact pill; the tap area stays 44 pt through an invisible margin */
+.ui-root .map-switch { padding: 2px; }
+.ui-root .map-switch label { position: relative; height: 30px !important; padding: 0 12px; font: var(--weight-semibold) 13px/30px var(--font-sans); }
+.ui-root .map-switch label::after { content: ""; position: absolute; inset: -7px -2px; }
