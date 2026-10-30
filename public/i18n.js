@@ -391,7 +391,7 @@
     'The top markets light up as the agent ranks them. Preparing the dates…': 'Les meilleurs marchés s’allument à mesure que l’agent les classe. Préparation des dates…',
     'higher': 'plus élevé',
     'Size is taste affinity. A ring marks a hidden market.': 'La taille indique l’affinité de goût. Un anneau signale un marché caché.',
-    'Fan heat: {n} areas from one Qloo heatmap call': 'Chaleur des fans : {n} zones, issues d’un seul appel heatmap de Qloo',
+    'Fan heat by metro, from {n} areas of one Qloo heatmap call': 'Chaleur des fans par métropole, d’après {n} zones d’un seul appel heatmap de Qloo',
     'Plan sections': 'Sections du plan',
     'Notes': 'Notes',
     'Acts the people around you already love, before they blow up.': 'Les artistes que les gens autour de vous aiment déjà, avant qu’ils explosent.',

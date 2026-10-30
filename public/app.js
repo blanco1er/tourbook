@@ -1106,16 +1106,26 @@ function runBus(coords) {
 
 // ---- fan heat (30 Oct): where the fans over-index, cell by cell, from the same national heatmap call ----
 const heatSrc = () => S.book?.markets?.heat || S.heat || null;
+// One heat spot per metro, like a city on the Snap Map (owner, 30 Oct: the raw cells added up into one red sheet).
+// Each metro's heat is the strongest Qloo heatmap cell within ~130 km of it, rescaled across the 34 metros, so the
+// hottest cities stand out and the others stay faint. The source is still the one national heatmap call.
 function heatData() {
-  const h = heatSrc();
-  return { type: 'FeatureCollection', features: (h?.cells || []).map(([lng, lat, w]) => ({ type: 'Feature', properties: { w }, geometry: { type: 'Point', coordinates: [lng, lat] } })) };
+  const h = heatSrc(); const cells = h?.cells || []; const cities = S.cfg?.cities || [];
+  if (!cells.length || !cities.length) return { type: 'FeatureCollection', features: [] };
+  const vals = cities.map((c) => {
+    const k = Math.cos((c.lat * Math.PI) / 180); let best = 0;
+    for (const [lng, lat, w] of cells) { const dx = (lng - c.lng) * k, dy = lat - c.lat; if (dx * dx + dy * dy < 1.44 && w > best) best = w; }
+    return { c, v: best };
+  }).filter((x) => x.v > 0);
+  const lo = Math.min(...vals.map((x) => x.v)), hi = Math.max(...vals.map((x) => x.v));
+  return { type: 'FeatureCollection', features: vals.map(({ c, v }) => ({ type: 'Feature', properties: { w: hi > lo ? 0.12 + 0.88 * ((v - lo) / (hi - lo)) : 1 }, geometry: { type: 'Point', coordinates: [c.lng, c.lat] } })) };
 }
 function heatPaint(opacity) {
   const dark = isDark();
   return {
-    'heatmap-weight': ['interpolate', ['linear'], ['get', 'w'], 0.4, 0, 0.8, 0.22, 0.95, 0.7, 1, 1],
-    'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 3, 0.75, 6, 1.4, 9, 2.2],
-    'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 3, 15, 4, 21, 6, 40, 9, 80],
+    'heatmap-weight': ['interpolate', ['exponential', 1.8], ['get', 'w'], 0, 0, 1, 1],
+    'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 3, 2.6, 6, 2.2, 9, 2],
+    'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 3, 30, 4, 40, 6, 76, 9, 150],
     'heatmap-color': dark
       // full spectrum like the Snap Map heatmap (owner's choice, 30 Oct): cool blue edge → teal → green → yellow → orange → red core
       ? ['interpolate', ['linear'], ['heatmap-density'], 0, 'rgba(56,189,248,0)', 0.1, 'rgba(56,189,248,0.35)', 0.28, 'rgba(45,212,191,0.55)', 0.45, 'rgba(132,204,22,0.7)', 0.6, '#FACC15', 0.75, '#FB923C', 0.88, '#EF4444', 1, '#DC2626']
@@ -1142,7 +1152,7 @@ function drawHeat(bloom = false) {
 }
 const heatLegend = () => {
   const h = heatSrc();
-  return h && S.plan !== 'llm' ? `<span class="heat-key"><i></i>${t('Fan heat: {n} areas from one Qloo heatmap call', { n: (h.total || h.cells.length).toLocaleString(LOCALE) })}</span>` : '';
+  return h && S.plan !== 'llm' ? `<span class="heat-key"><i></i>${t('Fan heat by metro, from {n} areas of one Qloo heatmap call', { n: (h.total || h.cells.length).toLocaleString(LOCALE) })}</span>` : '';
 };
 // Hide a city label when it would collide with a higher-ranked label or a stop pin (dense Midwest / Northeast).
 // Boxes are measured on screen, so the rule holds for any label size or position.
