@@ -140,6 +140,7 @@
             <button class="ui-icon-button ui-glass" type="button" id="zoomFit" aria-label="Fit the whole tour"><svg class="ui-icon"><use href="#i-fit"/></svg></button>
           </div>
           <div class="map-legend ui-glass" id="legend"></div>
+          <div class="map-title ui-glass" id="mapTitle" aria-live="polite" hidden></div>
           <button class="map-rest ui-icon-button ui-glass" type="button" id="mapRest" aria-label="Done with the map: scroll the page" title="Done with the map: scroll the page"><svg class="ui-icon"><use href="#i-x"/></svg></button>
           <p class="map-hint ui-glass" id="mapHint" aria-hidden="true"><svg class="ui-icon"><use href="#i-map"/></svg>Click to explore the map</p>
           <p class="map-credit">© OpenStreetMap contributors · OpenMapTiles · OpenFreeMap</p>
@@ -164,14 +165,40 @@
           </div>
         </div>
 
-        <!-- Results -->
+        <!-- Results (30 Oct): one panel at a time under the map, chosen from a sticky tab bar -->
         <div class="when-ready">
-          <div class="grid-main block">
+          <nav class="result-tabs" id="resultTabs" role="tablist" aria-label="Plan sections">
+            <button type="button" role="tab" id="tab-dates" aria-controls="panel-dates" aria-selected="true" data-tab="dates"><span>Dates</span></button>
+            <button type="button" role="tab" id="tab-ask" aria-controls="panel-ask" aria-selected="false" data-tab="ask"><span>Ask Tourbook</span></button>
+            <button type="button" role="tab" id="tab-compare" aria-controls="panel-compare" aria-selected="false" data-tab="compare"><span>With / without Qloo</span></button>
+            <button type="button" role="tab" id="tab-markets" aria-controls="panel-markets" aria-selected="false" data-tab="markets"><span>All 34 markets</span></button>
+            <button type="button" role="tab" id="tab-audience" aria-controls="panel-audience" aria-selected="false" data-tab="audience"><span>Audience</span></button>
+          </nav>
+
+          <div class="result-panel block" role="tabpanel" id="panel-dates" aria-labelledby="tab-dates" data-panel="dates">
             <div class="ui-list-section">
               <div class="ui-list__header"><strong>First three dates</strong><span>Open one for its dossier</span></div>
               <ul class="ui-list dates" id="dates"></ul>
               <p class="ui-list__footer" id="datesFoot"></p>
             </div>
+          </div>
+
+          <div class="result-panel block" role="tabpanel" id="panel-ask" aria-labelledby="tab-ask" data-panel="ask" hidden>
+            <section class="ask" aria-labelledby="askTitle">
+              <header class="block-head">
+                <h2 class="ui-title2" id="askTitle">Ask Tourbook</h2>
+                <p class="ui-callout ui-secondary">Change the tour in plain words. The agent checks Qloo, proposes one change with its numbers, and you decide.</p>
+              </header>
+              <form class="ask-form" id="askForm" autocomplete="off">
+                <input class="ask-input" id="askInput" type="text" maxlength="300" enterkeyhint="send" aria-label="Ask Tourbook to change the tour" placeholder="Swap the weakest stop for somewhere in the South">
+                <button class="ui-button ui-button--prominent" type="submit" id="askBtn"><span>Ask</span></button>
+              </form>
+              <div class="ask-chips" id="askChips"></div>
+              <div class="ask-result" id="askResult" aria-live="polite"></div>
+            </section>
+          </div>
+
+          <div class="result-panel block" role="tabpanel" id="panel-compare" aria-labelledby="tab-compare" data-panel="compare" hidden>
             <div class="ui-list-section">
               <div class="ui-list__header"><strong>With and without Qloo</strong><button class="ui-button ui-button--plain ui-button--sm" type="button" id="compareFlip">Show on map</button></div>
               <div class="compare" id="compare"></div>
@@ -179,6 +206,7 @@
             </div>
           </div>
 
+          <div class="result-panel" role="tabpanel" id="panel-markets" aria-labelledby="tab-markets" data-panel="markets" hidden>
           <section class="block" aria-labelledby="marketsTitle">
             <header class="block-head">
               <h2 class="ui-title2" id="marketsTitle">All 34 markets</h2>
@@ -190,7 +218,9 @@
             </div>
             <p class="fine">Hidden Market Score = 60 % taste strength + 40 % gap between taste rank and population rank. A hidden market beats its population rank by five places or more, with strong taste.</p>
           </section>
+          </div>
 
+          <div class="result-panel" role="tabpanel" id="panel-audience" aria-labelledby="tab-audience" data-panel="audience" hidden>
           <div class="grid-2 block">
             <section class="panel" aria-labelledby="audTitle">
               <div class="panel-head"><h3 class="ui-headline" id="audTitle">Who the audience is</h3><p class="ui-footnote ui-secondary">Relative affinity by segment, from <code>urn:demographics</code></p></div>
@@ -200,6 +230,7 @@
               <div class="panel-head"><h3 class="ui-headline" id="momTitle">Momentum</h3><p class="ui-footnote ui-secondary" id="momentumSub">Weekly popularity percentile, from <code>/v2/trending</code></p></div>
               <div id="momentum"></div>
             </section>
+          </div>
           </div>
 
           <p class="plan-foot ui-footnote ui-secondary" id="planFoot"></p>

@@ -77,6 +77,7 @@ function renderDemos() {
 for (const ev of ['gesturestart', 'gesturechange']) document.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
 
 function bindUi() {
+  bindTabs(); bindAsk();
   document.addEventListener('click', (e) => {
     const nav = e.target.closest('[data-nav]');
     if (nav) { e.preventDefault(); setView(nav.dataset.nav); return; }
@@ -527,6 +528,7 @@ function render() {
   spring(st, [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { preset: 'smooth', fill: 'none' });
   $('#planToggle').hidden = !b.baseline;
   renderDates(); renderCompare(); renderMarkets(); renderAudience(); renderMomentum(); renderAgentFinal();
+  S.askKeep = false; S.askProposal = null; S.askUndo = null; renderAsk(); setTab(S.tab || 'dates');
   $('#planFoot').textContent = `${live ? t('Source: Qloo Insights API. Aggregate taste affinities, never individuals.') : t('Synthetic data: acts, venues, brands and numbers are invented in mock mode, with Qloo’s real request and response shapes.')} ${t('Agent: {agent}. Planned {date}.', { agent: S.cfg.llm.provider === 'mock' ? t('scripted planner') : S.cfg.llm.model, date: new Date(b.createdAt).toLocaleString(LOCALE, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) })}`;
   drawMap();
   updateToolbar();
@@ -575,6 +577,128 @@ function renderCompare() {
   $('#compareFoot').textContent = t('Same act, same question. Without taste data the plan follows population. With Qloo, {n} of {total} stops change{stay}. Stops in bold are the ones only Qloo found.', {
     n: b.comparison?.onlyQloo?.length ?? 0, total: right.length,
     stay: shared ? (shared === 1 ? t(' and {shared} stays', { shared }) : t(' and {shared} stay', { shared })) : '',
+  });
+}
+
+// ---------------- result tabs (30 Oct): one panel at a time under the map ----------------
+function setTab(name, focus = false) {
+  S.tab = name;
+  $$('#resultTabs [role="tab"]').forEach((b) => { const on = b.dataset.tab === name; b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1; if (on && focus) b.focus(); if (on) b.scrollIntoView({ block: 'nearest', inline: 'center', behavior: reduceMotion() ? 'auto' : 'smooth' }); });
+  $$('.result-panel').forEach((p) => {
+    const on = p.dataset.panel === name;
+    if (on && p.hidden) { p.hidden = false; spring(p, [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { preset: 'smooth', fill: 'none' }); }
+    else if (!on) p.hidden = true;
+  });
+}
+function bindTabs() {
+  const bar = $('#resultTabs'); if (!bar) return;
+  bar.addEventListener('click', (e) => { const b = e.target.closest('[role="tab"]'); if (!b) return; setTab(b.dataset.tab); const top = bar.getBoundingClientRect().top; if (top < 0 || top > innerHeight * 0.6) bar.scrollIntoView({ block: 'start', behavior: reduceMotion() ? 'auto' : 'smooth' }); });
+  bar.addEventListener('keydown', (e) => {
+    const tabs = $$('#resultTabs [role="tab"]'); const i = tabs.findIndex((b) => b.dataset.tab === S.tab);
+    const j = e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowLeft' ? i - 1 : e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : null;
+    if (j == null) return; e.preventDefault(); setTab(tabs[(j + tabs.length) % tabs.length].dataset.tab, true);
+  });
+  // The tab bar sticks right under the toolbar, whatever the toolbar's height (phone title row, safe area).
+  const tb = $('#toolbar'); const sync = () => document.documentElement.style.setProperty('--tb-h', `${tb.offsetHeight}px`);
+  sync(); if (window.ResizeObserver) new ResizeObserver(sync).observe(tb);
+}
+
+// ---------------- Ask Tourbook: one follow-up change, checked by the server ----------------
+const askPlan = () => {
+  const b = S.book;
+  const entityIds = [b.artist?.selected?.id, ...(b.proxies || []).map((p) => p?.selected?.id)].filter(Boolean);
+  const scores = Object.fromEntries(b.markets.all.map((m) => [m.id, { hms: m.hms, affinityRank: m.affinityRank, popRank: m.popRank, hidden: m.hidden }]));
+  return { entityIds, entityType: b.artist?.selected?.type, tour: b.markets.top.map((m) => m.id), scores };
+};
+function renderAsk() {
+  const b = S.book; if (!b?.markets) return;
+  const tour = new Set(b.markets.top.map((m) => m.id));
+  const weakest = [...b.markets.top].sort((x, y) => x.hms - y.hms)[0];
+  const bestOut = b.markets.all.find((m) => !tour.has(m.id));
+  const chips = [
+    t('Swap the weakest stop'),
+    t('Swap the weakest stop for somewhere in the South'),
+    bestOut && t('Add a stop near {city}', { city: bestOut.name }),
+    weakest && t('Drop {city}', { city: weakest.name }),
+  ].filter(Boolean);
+  $('#askChips').innerHTML = chips.map((c) => `<button type="button" class="ask-chip" data-q="${esc(c)}">${esc(c)}</button>`).join('');
+  if (!S.askKeep) $('#askResult').innerHTML = '';
+}
+function askStepLine(st) {
+  if (st.name === 'find_markets') {
+    const n = st.result?.candidates?.length ?? 0; const a = st.args || {};
+    const where = a.region ? t(' in the {region}', { region: t(a.region[0].toUpperCase() + a.region.slice(1)) }) : a.near_city ? t(' near {city}', { city: S.cities[a.near_city]?.name || a.near_city }) : '';
+    return `<li><span class="ask-step-k">${t('Scores')}</span>${t('Read the plan’s national taste scores: {n} candidates{where}', { n, where })}</li>`;
+  }
+  if (st.name === 'check_rooms') {
+    const r = st.result || {}; const first = r.rooms?.[0]?.name;
+    return `<li><span class="ask-step-k is-qloo">Qloo</span>${r.found ? t('{n} rooms its audience favours in {city}, led by {room}', { n: r.found, city: esc(r.city), room: esc(first) }) : t('No matching room found in {city}', { city: esc(r.city || '') })}</li>`;
+  }
+  if (st.name === 'note') return `<li><span class="ask-step-k">${t('Note')}</span>${esc(st.result?.text || '')}</li>`;
+  return '';
+}
+function deltaCell(label, a, b, { better = 'up', unit = '' } = {}) {
+  const d = Math.round((b - a) * 10) / 10; const good = better === 'up' ? d > 0 : d < 0;
+  const cls = d === 0 ? '' : good ? 'is-good' : 'is-bad';
+  const fmt = (x) => `${Number(x).toLocaleString(LOCALE)}${unit}`;
+  return `<div class="ask-delta-cell"><span>${label}</span><b>${fmt(a)} → ${fmt(b)}</b>${d ? `<em class="${cls}">${d > 0 ? '+' : '−'}${Math.abs(d).toLocaleString(LOCALE)}${unit}</em>` : `<em>${t('same')}</em>`}</div>`;
+}
+async function ask(question) {
+  question = String(question || '').trim(); if (!question || S.asking || !S.book) return;
+  S.asking = true; S.askKeep = false; $('#askInput').value = question;
+  const btn = $('#askBtn'); btn.disabled = true;
+  $('#askResult').innerHTML = `<div class="ask-card is-busy"><p class="ask-q">“${esc(question)}”</p><ul class="ask-steps"><li><span class="live-dot"></span>${t('The agent is reading the scores and checking Qloo…')}</li></ul></div>`;
+  try {
+    const r = await fetch('/api/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question, lang: LANG, plan: askPlan() }) });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+    (d.calls || []).forEach((c) => S.calls.push(c));
+    const p = d.proposal;
+    const steps = (d.steps || []).map(askStepLine).join('');
+    if (!p) { $('#askResult').innerHTML = `<div class="ask-card"><p class="ask-q">“${esc(question)}”</p><ul class="ask-steps">${steps}</ul><p class="ask-reason">${t('The agent could not make a valid change: {e}', { e: esc((d.errors || []).join(' ')) })}</p></div>`; return; }
+    const name = (id) => esc(S.cities[id]?.name || id); const hms = (id) => S.book.markets.all.find((m) => m.id === id)?.hms;
+    const change = p.holds ? `<span class="ask-pill is-hold">${t('The tour holds')}</span>`
+      : [...p.remove.map((id) => `<span class="ask-pill is-out">− ${name(id)} <b>${hms(id)}</b></span>`), ...p.add.map((id) => `<span class="ask-pill is-in">+ ${name(id)} <b>${hms(id)}</b></span>`)].join('');
+    S.askProposal = p;
+    $('#askResult').innerHTML = `<div class="ask-card">
+      <p class="ask-q">“${esc(question)}”</p>
+      <ul class="ask-steps">${steps}</ul>
+      <div class="ask-change">${change}</div>
+      <p class="ask-reason">${esc(p.reason)}</p>
+      ${p.holds ? '' : `<div class="ask-delta">${deltaCell(t('Mean Hidden Market Score'), p.before.meanHms, p.after.meanHms)}${deltaCell(t('Hidden markets'), p.before.hidden, p.after.hidden)}${deltaCell(t('Route'), p.before.km, p.after.km, { better: 'down', unit: ' km' })}</div>
+      <div class="ask-actions"><button class="ui-button ui-button--prominent" type="button" id="askApply">${t('Apply to my tour')}</button><button class="ui-button" type="button" id="askDismiss">${t('Keep my tour')}</button></div>`}
+      <p class="ask-foot ui-footnote ui-secondary">${d.by === 'model' ? t('Proposed by the model, checked by the server.') : t('Proposed by the scripted planner, checked by the server.')} ${t('{n} live Qloo requests.', { n: (d.calls || []).length })}</p>
+    </div>`;
+    spring($('#askResult .ask-card'), [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { preset: 'smooth', fill: 'none' });
+  } catch (e) {
+    $('#askResult').innerHTML = `<div class="ask-card"><p class="ask-reason">${t('The agent could not answer: {e}', { e: esc(e.message) })}</p></div>`;
+  } finally { S.asking = false; btn.disabled = false; }
+}
+function applyProposal() {
+  const p = S.askProposal; const b = S.book; if (!p || !b) return;
+  S.askUndo = { top: b.markets.top, route: b.route, comparison: b.comparison };
+  const byId = Object.fromEntries(b.markets.all.map((m) => [m.id, m]));
+  b.markets.top = p.tour.map((id) => byId[id]).filter(Boolean).sort((x, y) => y.hms - x.hms);
+  b.route = p.after.order;
+  if (b.baseline) { const base = new Set(b.baseline.cities.map((c) => c.id)); b.comparison = { ...b.comparison, onlyQloo: b.markets.top.filter((m) => !base.has(m.id)).map((m) => m.id), shared: b.markets.top.filter((m) => base.has(m.id)).map((m) => m.id) }; }
+  S.askKeep = true; drawMap(); renderCompare(); renderAsk();
+  $('#askResult .ask-actions').innerHTML = `<span class="ask-pill is-hold">${t('Applied')}</span><button class="ui-button ui-button--plain" type="button" id="askUndo">${t('Undo')}</button>`;
+  $('#mapwrap').scrollIntoView({ block: 'center', behavior: reduceMotion() ? 'auto' : 'smooth' });
+  toast({ title: t('Tour updated'), detail: t('{n} stops, {km} km. The map shows the new route.', { n: p.after.stops, km: p.after.km.toLocaleString(LOCALE) }), tone: 'ok' });
+}
+function undoProposal() {
+  const u = S.askUndo; if (!u || !S.book) return;
+  Object.assign(S.book.markets, { top: u.top }); S.book.route = u.route; S.book.comparison = u.comparison; S.askUndo = null;
+  S.askKeep = true; drawMap(); renderCompare(); renderAsk();
+  $('#askResult .ask-actions').innerHTML = `<button class="ui-button ui-button--prominent" type="button" id="askApply">${t('Apply to my tour')}</button><button class="ui-button" type="button" id="askDismiss">${t('Keep my tour')}</button>`;
+}
+function bindAsk() {
+  $('#askForm')?.addEventListener('submit', (e) => { e.preventDefault(); ask($('#askInput').value); });
+  $('#askChips')?.addEventListener('click', (e) => { const c = e.target.closest('[data-q]'); if (c) ask(c.dataset.q); });
+  $('#askResult')?.addEventListener('click', (e) => {
+    if (e.target.closest('#askApply')) applyProposal();
+    else if (e.target.closest('#askUndo')) undoProposal();
+    else if (e.target.closest('#askDismiss')) { S.askProposal = null; $('#askResult').innerHTML = ''; }
   });
 }
 
@@ -666,16 +790,38 @@ function quietStyle() {
   if (!S.map.getSource('heat')) S.map.addSource('heat', { type: 'geojson', data: heatData() });
   if (!S.map.getLayer('heat')) S.map.addLayer({ id: 'heat', type: 'heatmap', source: 'heat', paint: heatPaint(0) });
   if (!S.map.getSource('route')) S.map.addSource('route', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-  const c = isDark() ? '#F5F5F7' : '#1D1D1F';
-  if (!S.map.getLayer('route')) S.map.addLayer({ id: 'route', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': c, 'line-width': 2, 'line-dasharray': [1.4, 1.6], 'line-opacity': 0.75 } });
+  const ink = isDark() ? '#E0E7FF' : '#312E81', glow = isDark() ? '#818CF8' : '#6366F1';
+  if (!S.map.getLayer('route-glow')) S.map.addLayer({ id: 'route-glow', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': glow, 'line-width': 9, 'line-blur': 7, 'line-opacity': isDark() ? 0.55 : 0.35 } });
+  if (!S.map.getLayer('route')) S.map.addLayer({ id: 'route', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': ink, 'line-width': 2.2, 'line-opacity': 0.9 } });
+  // The tour pulse: a point that keeps travelling the route, stop to stop.
+  if (!S.map.getSource('bus')) S.map.addSource('bus', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  if (!S.map.getLayer('bus-glow')) S.map.addLayer({ id: 'bus-glow', type: 'circle', source: 'bus', paint: { 'circle-radius': 14, 'circle-blur': 1, 'circle-color': glow, 'circle-opacity': 0.7 } });
+  if (!S.map.getLayer('bus')) S.map.addLayer({ id: 'bus', type: 'circle', source: 'bus', paint: { 'circle-radius': 4.5, 'circle-color': '#FFFFFF', 'circle-stroke-width': 2, 'circle-stroke-color': glow } });
 }
 function drawCurrent() { if (S.book?.markets) drawMap(); else if (S.liveTop) drawLiveTop(); else drawBaseMap(); }
 function mapPadding() {
   const el = $('#mapwrap'); const w = el?.clientWidth || innerWidth;
   const under = isWide() && !$('#app').classList.contains('is-sidebar-collapsed') ? 284 : 0;
-  return w < 560 ? { top: 64, bottom: 96, left: 28, right: 28 } : { top: 70, bottom: 124, left: under + 70, right: 80 };
+  return w < 560 ? { top: 132, bottom: 110, left: 36, right: 36 } : { top: 96, bottom: 124, left: under + 70, right: 80 };
 }
-function clearMarkers() { S.markers.forEach((m) => m.remove()); S.markers = []; S.map?.getSource('route')?.setData({ type: 'FeatureCollection', features: [] }); }
+function clearMarkers() { S.markers.forEach((m) => m.remove()); S.markers = []; S.map?.getSource('route')?.setData({ type: 'FeatureCollection', features: [] }); stopBus(); }
+let busAnim;
+function stopBus() { cancelAnimationFrame(busAnim); S.map?.getSource('bus')?.setData({ type: 'FeatureCollection', features: [] }); }
+/** Sends the tour pulse along the route, forever, at a pace set by the route's length (about 9 s a loop). */
+function runBus(coords) {
+  stopBus();
+  const src = S.map?.getSource('bus'); if (!src || coords.length < 2 || reduceMotion()) return;
+  const seg = coords.slice(1).map((c, i) => Math.hypot(c[0] - coords[i][0], c[1] - coords[i][1])); const total = seg.reduce((a, b) => a + b, 0) || 1;
+  const loop = 9000, pause = 900; const t0 = performance.now();
+  const step = (now) => {
+    const t = (now - t0) % (loop + pause); const p = Math.min(1, t / loop); const e = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+    let d = e * total, i = 0; while (i < seg.length - 1 && d > seg[i]) { d -= seg[i]; i++; }
+    const f = seg[i] ? Math.min(1, d / seg[i]) : 0; const a = coords[i], b = coords[i + 1];
+    src.setData({ type: 'Feature', geometry: { type: 'Point', coordinates: [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f] } });
+    busAnim = requestAnimationFrame(step);
+  };
+  busAnim = requestAnimationFrame(step);
+}
 
 // ---- fan heat (30 Oct): where the fans over-index, cell by cell, from the same national heatmap call ----
 const heatSrc = () => S.book?.markets?.heat || S.heat || null;
@@ -716,29 +862,41 @@ const heatLegend = () => {
   const h = heatSrc();
   return h && S.plan !== 'llm' ? `<span class="heat-key"><i></i>${t('Fan heat: {n} areas from one Qloo heatmap call', { n: (h.total || h.cells.length).toLocaleString(LOCALE) })}</span>` : '';
 };
-// Hide a city label when it would collide with a higher-ranked label or dot (dense Midwest / Northeast).
+// Hide a city label when it would collide with a higher-ranked label or a stop pin (dense Midwest / Northeast).
+// Boxes are measured on screen, so the rule holds for any label size or position.
 function declutter() {
   if (!S.map) return;
-  const placed = [];
-  const items = S.markers.map((mk) => ({ mk, el: mk.getElement() })).filter((x) => x.el.querySelector('.lbl'))
+  const items = S.markers.map((mk) => ({ el: mk.getElement() })).filter((x) => x.el.querySelector('.lbl'))
     .sort((a, b) => Number(a.el.dataset.rank || 99) - Number(b.el.dataset.rank || 99));
-  for (const { mk, el } of items) {
-    const p = S.map.project(mk.getLngLat()); const r = Number(el.dataset.size || 20) / 2; const name = el.querySelector('.lbl').textContent;
-    const w = name.length * 6.6 + 6; const box = { x0: p.x - w / 2, x1: p.x + w / 2, y0: p.y + r + 3, y1: p.y + r + 19 };
-    const dots = items.map((o) => { const q = S.map.project(o.mk.getLngLat()); const rr = Number(o.el.dataset.size || 20) / 2; return { x0: q.x - rr, x1: q.x + rr, y0: q.y - rr, y1: q.y + rr }; });
-    const hit = (a, b) => a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0;
-    const clash = placed.some((b) => hit(box, b)) || dots.some((d) => hit(box, d));
+  const box = (r, pad = 2) => ({ x0: r.left - pad, x1: r.right + pad, y0: r.top - pad, y1: r.bottom + pad });
+  const hit = (a, b) => a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0;
+  const pins = items.map((x) => box(x.el.querySelector('.dot').getBoundingClientRect(), 0));
+  // The glass controls on the map are obstacles too (switch, headline, legend, zoom buttons).
+  const placed = ['#planToggle', '#mapTitle', '#legend', '.map-controls'].map((q) => $(q)).filter((e) => e && !e.hidden && e.offsetParent)
+    .map((e) => box(e.getBoundingClientRect(), 4));
+  const frame = $('#mapwrap').getBoundingClientRect();
+  for (const { el } of items) {
+    el.classList.remove('no-lbl');
+    const lbl = el.querySelector('.lbl'); lbl.style.setProperty('--dx', '0px');
+    // Keep the label inside the map: it slides sideways, its pointer stays on the pin.
+    const r0 = lbl.getBoundingClientRect(); const m = 8;
+    const dx = r0.left < frame.left + m ? frame.left + m - r0.left : r0.right > frame.right - m ? frame.right - m - r0.right : 0;
+    if (dx) lbl.style.setProperty('--dx', `${Math.round(dx)}px`);
+    const b = box(lbl.getBoundingClientRect());
+    const own = box(el.querySelector('.dot').getBoundingClientRect(), 0);
+    const clash = placed.some((p) => hit(b, p)) || pins.some((p) => p !== own && !(p.x0 === own.x0 && p.y0 === own.y0) && hit(b, p));
     el.classList.toggle('no-lbl', clash);
-    if (!clash) placed.push(box);
+    if (!clash) placed.push(b);
   }
 }
-function addMarker(m, { size, bg, label = '', rank = 0, minor = false, hidden = false, enter = false, delay = 0 }) {
+function addMarker(m, { size, bg, label = '', rank = 0, score = null, minor = false, hidden = false, enter = false, delay = 0 }) {
   const el = document.createElement('div');
-  el.className = `mk${minor ? ' is-minor' : ''}${hidden ? ' is-hidden' : ''}${enter ? ' is-enter' : ''}${rank > 5 ? ' is-rank-far' : ''}`;
+  el.className = `mk${minor ? ' is-minor' : ' is-stop'}${hidden ? ' is-hidden' : ''}${enter ? ' is-enter' : ''}${rank > 5 ? ' is-rank-far' : ''}`;
   el.style.setProperty('--d', `${delay}ms`); el.style.setProperty('--r', `${size / 2}px`);
   el.dataset.size = size; if (rank) el.dataset.rank = rank;
   const ink = luminance(bg) > 0.55 ? '#1D1D1F' : '#fff';
-  el.innerHTML = `<div class="dot" style="width:${size}px;height:${size}px;background:${bg};color:${ink}">${rank && size >= 18 ? rank : ''}</div>${label ? `<div class="lbl">${esc(label)}</div>` : ''}`;
+  const tag = label ? `<div class="lbl">${rank ? `<i style="background:${bg};color:${ink}">${rank}</i>` : ''}<span>${esc(label)}</span>${score != null ? `<b>${score}</b>` : ''}</div>` : '';
+  el.innerHTML = `<div class="dot" style="width:${size}px;height:${size}px;background:${bg}"></div>${tag}`;
   el.tabIndex = minor ? -1 : 0;
   el.setAttribute('role', 'button');
   el.setAttribute('aria-label', `${m.name}${m.hms != null ? t(', Hidden Market Score {hms}', { hms: m.hms }) : ''}${t('. Open the dossier')}`);
@@ -769,6 +927,7 @@ function drawBaseMap() {
   for (const c of all) addMarker(c, { size: Math.round((7 + 15 * Math.sqrt(c.pop / maxPop)) * k), bg: greyDot(), minor: true });
   drawHeat(false);
   $('#legend').innerHTML = `<b>${t('34 US metros')}</b><span class="ui-secondary">${t('Sized by population, the way tours are usually routed.')}${S.running ? ` ${t('Scoring them by taste…')}` : ''}</span>`;
+  setMapTitle(S.running ? `<span class="live-dot"></span>${t('Scoring 34 metros by taste')}` : '');
 }
 function drawLiveTop() {
   if (!S.map || !S.liveTop) return;
@@ -778,10 +937,11 @@ function drawLiveTop() {
     const t = top.get(c.id);
     if (!t) addMarker(c, { size: 7, bg: greyDot(), minor: true });
   }
-  for (const [id, t] of top) { const c = S.cities[id]; addMarker({ ...c, ...t }, { size: 22 + Math.round(t.affinity * 18), bg: tasteColor(t.hms), rank: t.rank, label: c.name, enter: true, delay: t.rank * 60 }); }
+  for (const [id, t] of top) { const c = S.cities[id]; addMarker({ ...c, ...t }, { size: 14, bg: tasteColor(t.hms), rank: t.rank, score: t.hms, label: c.name, enter: true, delay: t.rank * 90 }); }
   S.routeCoords = [...top.keys()].map((id) => S.cities[id]).filter(Boolean).map((c) => [c.lng, c.lat]);
   fitTour(true, true);
   declutter();
+  setMapTitle(`<span class="live-dot"></span>${t('{n} markets ranked · preparing the dates', { n: S.liveTop.length })}`);
   $('#legend').innerHTML = `<b>${t('Scored by taste')}</b><span class="ui-secondary">${t('The top markets light up as the agent ranks them. Preparing the dates…')}</span>${heatLegend()}`;
 }
 let routeAnim;
@@ -799,14 +959,18 @@ function drawMap() {
   for (const m of all.filter((x) => !selected.has(x.id))) addMarker(m, { size: 7, bg: greyDot(), minor: true });
   for (const m of all.filter((x) => selected.has(x.id))) {
     const rank = selected.get(m.id);
-    const size = Math.round((qloo ? 22 + 22 * ((m.affinity - lo) / Math.max(0.001, hi - lo)) : 20 + 26 * Math.sqrt(m.pop / maxPop)) * k);
-    addMarker(m, { size, bg: qloo ? tasteColor(m.hms) : (isDark() ? '#8E8E93' : '#636366'), rank, label: m.name, hidden: qloo && m.hidden, enter: true, delay: rank * 55 });
+    const size = Math.round((qloo ? 12 + 9 * ((m.affinity - lo) / Math.max(0.001, hi - lo)) : 11 + 11 * Math.sqrt(m.pop / maxPop)) * k);
+    addMarker(m, { size, bg: qloo ? tasteColor(m.hms) : (isDark() ? '#8E8E93' : '#636366'), rank, score: qloo ? m.hms : null, label: m.name, hidden: qloo && m.hidden, enter: true, delay: rank * 90 });
   }
   $('#legend').innerHTML = qloo
-    ? `<b>${t('With Qloo')}</b><div class="ramp"></div><div class="ends"><span>${t('Hidden Market Score')}</span><span>${t('higher')}</span></div><span class="ui-secondary">${t('Size is taste affinity. A ring marks a hidden market.')}</span>${heatLegend()}`
+    ? `<b>${t('With Qloo')}</b><div class="ramp"></div><div class="ends"><span>${t('Hidden Market Score')}</span><span>${t('higher')}</span></div><span class="ui-secondary">${t('Deeper indigo, stronger market. A breathing halo marks a hidden market.')}</span>${heatLegend()}`
     : `<b>${t('Without Qloo')}</b><div class="ramp is-pop"></div><div class="ends"><span>${t('Population')}</span><span>${t('bigger')}</span></div><span class="ui-secondary">${t('What a model without taste data proposes.')}</span>`;
   const coords = routeIds.map((id) => S.cities[id]).filter(Boolean).map((c) => [c.lng, c.lat]);
   S.routeCoords = coords;
+  const hiddenN = qloo ? b.markets.top.filter((m) => m.hidden).length : 0;
+  setMapTitle(qloo
+    ? `<b>${t('{n} stops', { n: coords.length })}</b><span>${t('{n} hidden markets', { n: hiddenN })}</span><span>${kmOf(coords).toLocaleString(LOCALE)} km</span>`
+    : `<b>${t('Without Qloo')}</b><span>${t('{n} stops by population', { n: coords.length })}</span><span>${kmOf(coords).toLocaleString(LOCALE)} km</span>`);
   drawHeat(false);
   fitTour(true);
   declutter();
@@ -832,10 +996,13 @@ function animateRoute(coords) {
     const cs = coords.slice(0, i + 1);
     if (i < segs) cs.push([coords[i][0] + (coords[i + 1][0] - coords[i][0]) * f, coords[i][1] + (coords[i + 1][1] - coords[i][1]) * f]);
     set(cs);
-    if (p < segs) routeAnim = requestAnimationFrame(step);
+    if (p < segs) routeAnim = requestAnimationFrame(step); else runBus(coords);
   };
   routeAnim = requestAnimationFrame(step);
 }
+// The map's own headline: what the map is doing now, then what the tour is.
+function setMapTitle(html) { const el = $('#mapTitle'); if (!el) return; el.hidden = !html; if (html && el.innerHTML !== html) { el.innerHTML = html; el.classList.remove('is-in'); void el.offsetWidth; el.classList.add('is-in'); } }
+const kmOf = (cs) => { let km = 0; for (let i = 1; i < cs.length; i++) { const [a, b] = [cs[i - 1], cs[i]]; const r = Math.PI / 180; const x = Math.sin((b[1] - a[1]) * r / 2) ** 2 + Math.cos(a[1] * r) * Math.cos(b[1] * r) * Math.sin((b[0] - a[0]) * r / 2) ** 2; km += 12742 * Math.asin(Math.sqrt(x)); } return Math.round(km); };
 function setPlan(p) {
   S.plan = p;
   const r = $(`#planToggle input[value="${p}"]`);

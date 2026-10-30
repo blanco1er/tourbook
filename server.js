@@ -12,7 +12,8 @@ import { rankMarkets } from './src/domain/markets.js';
 import { cityDossier } from './src/domain/dossier.js';
 import { venueMode } from './src/domain/venue.js';
 import { llmOnlyBaseline, compareWithQloo } from './src/domain/baseline.js';
-import { CITIES } from './src/data/cities.js';
+import { CITIES, CITY_BY_ID } from './src/data/cities.js';
+import { askTourbook } from './src/agent/ask.js';
 import { DEMO_ARTISTS, NEIGHBORHOOD_SUGGESTIONS } from './src/data/fixtures.js';
 import { LIVE_DEMOS } from './src/data/demos.js';
 
@@ -133,6 +134,34 @@ app.get('/api/baseline', traced(async (req) => {
 }));
 
 app.get('/api/venue', traced(async (req) => venueMode(qloo, { neighborhood: String(req.query.neighborhood || '').slice(0, 120), popularityMax: Math.min(1, Math.max(0.1, Number(req.query.popMax || 0.7))) })));
+
+// ---- Ask Tourbook: one follow-up change on a finished plan (see src/agent/ask.js) ----
+const asks = new Map();
+function takeAsk(ip) {
+  const key = `${new Date().toISOString().slice(0, 10)}:${ip}`;
+  const n = (asks.get(key) || 0) + 1;
+  if (n > 60) return false;
+  asks.set(key, n); if (asks.size > 5000) asks.clear();
+  return true;
+}
+const TYPES = ['urn:entity:artist', 'urn:entity:person', 'urn:entity:podcast'];
+app.post('/api/ask', traced(async (req) => {
+  const b = req.body || {};
+  const question = String(b.question || '').trim().slice(0, 300);
+  if (!question) throw Object.assign(new Error('A question is required.'), { status: 400 });
+  if (!takeAsk(req.ip)) throw Object.assign(new Error('Daily limit of follow-up questions reached for this address.'), { status: 429, code: 'daily_cap' });
+  const p = b.plan || {};
+  const scores = {};
+  for (const [id, s] of Object.entries(p.scores || {}).slice(0, 60)) {
+    if (!CITY_BY_ID[id] || !Number.isFinite(Number(s?.hms))) continue;
+    scores[id] = { hms: Number(s.hms), affinityRank: Number(s.affinityRank) || null, popRank: Number(s.popRank) || null, hidden: !!s.hidden };
+  }
+  const tour = [...new Set((p.tour || []).map(String))].filter((id) => scores[id]).slice(0, 10);
+  if (tour.length < 2) throw Object.assign(new Error('The plan has no tour to change.'), { status: 400 });
+  const plan = { entityIds: ids(Array.isArray(p.entityIds) ? p.entityIds.join(',') : p.entityIds), entityType: TYPES.includes(p.entityType) ? p.entityType : 'urn:entity:artist', tour, scores };
+  if (!plan.entityIds.length) throw Object.assign(new Error('The plan has no resolved act.'), { status: 400 });
+  return askTourbook({ question, plan, lang: b.lang === 'fr' ? 'fr' : 'en', qloo, llm });
+}));
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
 

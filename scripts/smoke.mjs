@@ -96,6 +96,24 @@ try {
   ok(/^.+'s strongest market is .+ \(Hidden Market Score \d+\)\./.test(plan.summary) && plan.summary.endsWith('Each date below comes with a room, an opener, a sponsor fit and a crowd brief, all traceable to Qloo calls.'), 'i18n: English summary unchanged');
   const badLang = await (await fetch(`${base}/api/plan`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ artist: demo.artist, proxies: demo.proxies, lang: 'de' }) })).json();
   ok(badLang.summary === plan.summary || badLang.summary?.startsWith(`${demo.artist}'s strongest market`), 'i18n: unknown lang falls back to English');
+
+  // Ask Tourbook (30 Oct): one follow-up change, validated by the server
+  const { CITIES: cities } = await import('../src/data/cities.js');
+  ok(Array.isArray(plan.markets.heat?.cells) && plan.markets.heat.cells.length > 0 && plan.markets.heat.cells.every((c) => c.length === 3 && c[2] >= 0.4 && c[2] <= 1), `fan heat: ${plan.markets.heat?.cells?.length ?? 0} cells from the national heatmap call, weights in [0.4, 1]`);
+  const askPlan = { entityIds: [plan.artist.selected.id], tour: plan.markets.top.map((m) => m.id), scores: Object.fromEntries(plan.markets.all.map((m) => [m.id, { hms: m.hms, affinityRank: m.affinityRank, popRank: m.popRank, hidden: m.hidden }])) };
+  const askOf = async (question, extra = {}) => (await fetch(`${base}/api/ask`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ question, plan: { ...askPlan, ...extra } }) })).json();
+  const south = await askOf('Swap the weakest stop for somewhere in the South');
+  const southStates = ['DE', 'MD', 'DC', 'VA', 'WV', 'NC', 'SC', 'GA', 'FL', 'KY', 'TN', 'AL', 'MS', 'AR', 'LA', 'OK', 'TX'];
+  const added = south.proposal?.add?.[0];
+  ok(south.proposal && south.proposal.remove.length === 1 && added && southStates.includes(cities.find((c) => c.id === added)?.state) && south.steps.some((s) => s.name === 'check_rooms'), `ask: "somewhere in the South" swaps one stop for a Southern metro after a room check (${south.proposal?.remove?.[0]} -> ${added})`);
+  ok(Number.isFinite(south.proposal?.before?.km) && Number.isFinite(south.proposal?.after?.meanHms) && south.proposal.tour.length === askPlan.tour.length, 'ask: the server computes before/after (route km, mean HMS) and keeps the tour size on a swap');
+  const drop = await askOf(`Drop ${cities.find((c) => c.id === askPlan.tour[1]).name}`);
+  ok(drop.proposal?.remove?.[0] === askPlan.tour[1] && !drop.proposal.add.length, 'ask: "Drop <city>" removes exactly that stop');
+  const noTour = await fetch(`${base}/api/ask`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ question: 'x', plan: { ...askPlan, tour: [] } }) });
+  ok(noTour.status === 400, 'ask: a plan without a tour is refused (400)');
+  const { validateProposal } = await import('../src/agent/ask.js');
+  const v = validateProposal({ remove: [askPlan.tour[0]], add: ['new-york'], reason: '' }, { tour: askPlan.tour, scores: askPlan.scores, seen: new Set() });
+  ok(!v.ok && v.errors.some((e) => /find_markets/.test(e)), 'ask: a city the agent never looked up is refused (no invented stops)');
 } catch (e) {
   console.error(e); failed++;
 } finally {
