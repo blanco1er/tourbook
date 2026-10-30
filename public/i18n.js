@@ -44,6 +44,7 @@
     'national heatmap call': 'appel heatmap national',
     'rejected parameters': 'paramètre rejeté',
     'New tour': 'Nouvelle tournée',
+    'Fan heat by metro, from Qloo taste affinity': 'Chaleur des fans par métropole, d’après l’affinité de goût Qloo',
     'History': 'Historique',
     'Saved on this device': 'Enregistré sur cet appareil',
     'Tours': 'Tournées',

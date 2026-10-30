@@ -1151,9 +1151,19 @@ const heatSrc = () => S.book?.markets?.heat || S.heat || null;
 // One heat spot per metro, like a city on the Snap Map (owner, 30 Oct: the raw cells added up into one red sheet).
 // Each metro's heat is the strongest Qloo heatmap cell within ~130 km of it, rescaled across the 34 metros, so the
 // hottest cities stand out and the others stay faint. The source is still the one national heatmap call.
+// Without the national heatmap (another ranking strategy was used), each metro's spot comes from its Qloo taste
+// affinity measured by the agent, so the map always shows where fans concentrate.
+function affinityHeat() {
+  const all = S.book?.markets?.all || []; const vals = all.filter((m) => Number.isFinite(m.affinity) && Number.isFinite(m.lng));
+  if (!vals.length) return null;
+  const lo = Math.min(...vals.map((m) => m.affinity)), hi = Math.max(...vals.map((m) => m.affinity));
+  return vals.map((m) => ({ lng: m.lng, lat: m.lat, w: hi > lo ? 0.12 + 0.88 * ((m.affinity - lo) / (hi - lo)) : 1 }));
+}
+const hasHeat = () => !!(heatSrc()?.cells?.length || affinityHeat());
 function heatData() {
   const h = heatSrc(); const cells = h?.cells || []; const cities = S.cfg?.cities || [];
-  if (!cells.length || !cities.length) return { type: 'FeatureCollection', features: [] };
+  if (!cells.length) { const a = affinityHeat() || []; return { type: 'FeatureCollection', features: a.map((x) => ({ type: 'Feature', properties: { w: x.w }, geometry: { type: 'Point', coordinates: [x.lng, x.lat] } })) }; }
+  if (!cities.length) return { type: 'FeatureCollection', features: [] };
   const vals = cities.map((c) => {
     const k = Math.cos((c.lat * Math.PI) / 180); let best = 0;
     for (const [lng, lat, w] of cells) { const dx = (lng - c.lng) * k, dy = lat - c.lat; if (dx * dx + dy * dy < 1.44 && w > best) best = w; }
@@ -1181,20 +1191,22 @@ function drawHeat(bloom = false) {
   if (!S.map?.getLayer('heat')) return;
   cancelAnimationFrame(heatAnim);
   S.map.getSource('heat').setData(heatData());
-  const target = heatSrc() && S.plan !== 'llm' ? (isDark() ? 0.7 : 0.72) : 0;
+  const target = hasHeat() && S.plan !== 'llm' ? (isDark() ? 0.7 : 0.72) : 0;
   if (!bloom || reduceMotion() || !target) { S.map.setPaintProperty('heat', 'heatmap-opacity', target); return; }
   const t0 = performance.now(), dur = 1600;
   const step = (now) => {
     const p = Math.min(1, (now - t0) / dur); const e = 1 - Math.pow(1 - p, 3);
     S.map.setPaintProperty('heat', 'heatmap-opacity', target * e);
-    S.map.setPaintProperty('heat', 'heatmap-intensity', ['interpolate', ['linear'], ['zoom'], 3, 0.75 * (0.4 + 0.6 * e), 6, 1.4 * (0.4 + 0.6 * e), 9, 2.2]);
+    S.map.setPaintProperty('heat', 'heatmap-intensity', ['interpolate', ['linear'], ['zoom'], 3, 2.6 * (0.4 + 0.6 * e), 6, 2.2 * (0.4 + 0.6 * e), 9, 2]); // same end values as heatPaint
     if (p < 1) heatAnim = requestAnimationFrame(step);
   };
   heatAnim = requestAnimationFrame(step);
 }
 const heatLegend = () => {
   const h = heatSrc();
-  return h && S.plan !== 'llm' ? `<span class="heat-key"><i></i>${t('Fan heat by metro, from {n} areas of one Qloo heatmap call', { n: (h.total || h.cells.length).toLocaleString(LOCALE) })}</span>` : '';
+  if (S.plan === 'llm') return '';
+  if (h?.cells?.length) return `<span class="heat-key"><i></i>${t('Fan heat by metro, from {n} areas of one Qloo heatmap call', { n: (h.total || h.cells.length).toLocaleString(LOCALE) })}</span>`;
+  return affinityHeat() ? `<span class="heat-key"><i></i>${t('Fan heat by metro, from Qloo taste affinity')}</span>` : '';
 };
 // Hide a city label when it would collide with a higher-ranked label or a stop pin (dense Midwest / Northeast).
 // Boxes are measured on screen, so the rule holds for any label size or position.
