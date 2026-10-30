@@ -94,7 +94,7 @@ function fullPosterPrompt(dir, { name, lines, footer, hasPhoto, tourLabel, ticke
     dir.motifs ? `Motifs: ${dir.motifs}.` : '', dir.mood ? `Mood: ${dir.mood}.` : '',
     dir.layout ? `Layout: ${dir.layout}.` : 'Layout: an original, bold composition specific to this act.',
     dir.typography ? `Typography: ${dir.typography}.` : '',
-    hasPhoto ? `The attached image is the real photograph of ${name}. Integrate it into the design${dir.photo ? ` (${dir.photo})` : ''}. Keep the people in it exactly as photographed: do not redraw, restyle, replace or add any face or person.` : 'No people, no faces.',
+    hasPhoto ? `The attached image is the real photograph of ${name}. Integrate it into the design${dir.photo ? ` (${dir.photo})` : ''}. Use it as a photograph with its original framing: you may crop it, cut out its background, tint it or set it in black and white, but never extend it (no invented body, legs or pose), never redraw, restyle or replace the person, and never add any other person.` : 'No people, no faces.',
     'It must read instantly as a concert TOUR poster: the tour label large and prominent near the name, and the stops set as the classic tour-date block (one stop per line, like the date list on a real tour poster).',
     'Render this text exactly, spelled exactly as written, and no other words, letters or numbers anywhere:',
     `- headline: "${name}" (the full name, exactly; never shortened)`,
@@ -132,7 +132,7 @@ export const posterFile = (hash) => (/^[a-f0-9]{20}$/.test(hash) ? resolve(CACHE
 
 /** Returns { hash, cached, model } once the art exists on disk. Throws with a status when it cannot be made. */
 export async function posterArt({ entityId, name, description, kind, genres, themes, cities, stops = [], photo, lang = 'en', beforeGenerate, llm }) {
-  const hash = hashOf({ v: 6, entityId, kind, genres, themes, cities, stops, lang }); // one poster per act, tour and language
+  const hash = hashOf({ v: 7, entityId, kind, genres, themes, cities, stops, lang }); // one poster per act, tour and language
   const file = posterFile(hash);
   if (existsSync(file)) return { hash, cached: true, model: null, full: true };
   const key = imageKey(); const model = await imageModel();
