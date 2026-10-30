@@ -484,7 +484,24 @@ html.map-open, html.map-open body { overflow: hidden; }
   a.ui-row:hover, button.ui-row:hover, .ui-table tbody tr:hover, .ui-nav-item:hover { background: transparent; }
   .ui-nav-item[aria-current="page"]:hover { background: var(--accent-tint); }
 }
-@media (max-width: 699px) { .date-facts dd { white-space: normal; } }
+@media (max-width: 699px) {
+  /* Dates (30 Oct): one line per fact; the taste fit lives in the dossier */
+  .dates button.ui-row { padding-block: 12px; gap: 12px; }
+  .date-facts { grid-template-columns: 112px minmax(0, 1fr); gap: 3px 10px; font-size: 14px; margin-top: 6px; }
+  .date-facts dt { white-space: nowrap; }
+  .date-facts dd span { display: none; }
+  .dates .ui-row__subtitle { font-size: 13px; }
+  .dates .hms b { font-size: 24px; }
+  /* Markets: name and score on one line, ranks under the name */
+  .markets.ui-table--stack tr { grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 12px; padding: 10px 14px; }
+  .markets.ui-table--stack td[data-slot="title"] .row-link { display: inline; min-height: 0; padding: 0; text-align: left; font-size: 16px; }
+  .markets.ui-table--stack td[data-slot="title"] small { display: inline; margin-left: 6px; font-size: 13px; }
+  .markets.ui-table--stack td[data-slot="meta"] { text-align: left !important; font-size: 13px; }
+  .markets.ui-table--stack td[data-slot="trailing"] { grid-row: 1 / span 2; }
+  .markets.ui-table--stack td[data-slot="trailing"] .track { display: none; }
+  .markets.ui-table--stack td { height: auto; }
+  .markets.ui-table--stack.is-all tr.is-hidden-row { display: grid; }
+}
 
 /* ---------- New plan sheet ---------- */
 .form-body { display: grid; gap: 20px; padding-top: 12px; }
@@ -592,3 +609,57 @@ html.map-open, html.map-open body { overflow: hidden; }
   .map-legend .ui-secondary, .map-legend .heat-key, .map-legend .ends { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .ask-badge .live-dot { animation: none; } }
+
+/* ---- Home (30 Oct): short pitch, three figures, two buttons side by side, demo acts as a card grid ---- */
+.hero-short { display: none; margin: 0 0 14px; font: 17px/1.45 var(--font-sans); color: var(--label-secondary); }
+.hero-facts { list-style: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0 0 14px; padding: 0; max-width: 560px; flex-basis: 100%; }
+.hero-facts li { display: grid; gap: 2px; padding: 12px 12px 10px; border-radius: 16px; background: var(--bg-elevated); box-shadow: 0 0 0 0.5px light-dark(rgba(0,0,0,.06), rgba(255,255,255,.1)); }
+.hero-facts b { font: var(--weight-semibold) 22px/1 var(--font-display); color: var(--taste-text); font-variant-numeric: tabular-nums; }
+.hero-facts span { font: 12px/1.3 var(--font-sans); color: var(--label-secondary); }
+.hero-buttons { display: flex; flex-wrap: wrap; gap: 10px 12px; }
+:root { --chart-1: var(--taste); }
+/* MapLibre's two-finger hint: a small glass pill, not a grey sheet over the whole map */
+.maplibregl-cooperative-gesture-screen { background: transparent !important; align-items: flex-end !important; padding-bottom: 72px !important; }
+.maplibregl-cooperative-gesture-screen .maplibregl-mobile-message, .maplibregl-cooperative-gesture-screen .maplibregl-desktop-message {
+  padding: 8px 14px; border-radius: 999px; font: var(--weight-medium) 13px/1.2 var(--font-sans); color: var(--label);
+  background: light-dark(rgba(255,255,255,.86), rgba(28,28,30,.82)); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); box-shadow: 0 6px 18px rgba(0,0,0,.14); }
+@media (max-width: 699px) {
+  [data-state="empty"] .summary { font-size: var(--text-title2); line-height: 1.2; margin-bottom: 8px; }
+  [data-state="empty"] .summary .sum-rest { display: none; }
+  .hero-short { display: block; }
+  .hero-buttons { display: grid; grid-template-columns: 1.15fr 1fr; width: 100%; gap: 8px; }
+  .hero-buttons .ui-button { min-width: 0; padding-inline: 10px; font-size: 16px; white-space: nowrap; }
+  #bodyDemos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; background: none; box-shadow: none; padding: 0; }
+  #bodyDemos li { border: 0; }
+  #bodyDemos li::after, #bodyDemos li::before { display: none; }
+  #bodyDemos .ui-row { flex-direction: column; align-items: flex-start; gap: 8px; height: 100%; min-height: 112px; padding: 12px; border-radius: 16px; background: var(--bg-elevated);
+    box-shadow: 0 0 0 0.5px light-dark(rgba(0,0,0,.06), rgba(255,255,255,.1)); }
+  #bodyDemos .ui-row__chevron { display: none; }
+  #bodyDemos li + li > .ui-row::before { display: none; }
+  #bodyDemos .ui-row__title { font-weight: var(--weight-semibold); }
+  #bodyDemos .ui-row__subtitle { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 13px; }
+  #bodyDemos li:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  #bodyDemos li:last-child:nth-child(odd) .ui-row { min-height: 0; }
+}
+
+/* ---- Agent at work (30 Oct): one structured card; the home content steps aside while it runs ---- */
+#view-plan[data-state="running"] .when-empty { display: none; }
+#view-plan[data-state="running"] .lead-actions { display: none; }
+.live { padding: 16px 18px; border-radius: 22px; background: var(--bg-elevated); gap: 12px;
+  box-shadow: 0 0 0 0.5px light-dark(rgba(0,0,0,.06), rgba(255,255,255,.1)), 0 10px 28px light-dark(rgba(30,27,75,.08), rgba(0,0,0,.4)); }
+.live-head { display: flex; align-items: center; gap: 10px; }
+.live-head b { font: var(--weight-semibold) 16px/1.2 var(--font-display); color: var(--label); }
+.live-head .live-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--taste); animation: pulse 1.2s ease-in-out infinite; }
+.live-meta { margin-left: auto; font: 13px/1 var(--font-sans); color: var(--label-secondary); font-variant-numeric: tabular-nums; }
+.steps li.is-done::before { background: var(--taste); }
+.steps li.is-active::before { background: linear-gradient(90deg, var(--taste) 0 40%, var(--fill) 40%); background-size: 250% 100%; }
+.live-log { min-height: 0; padding: 10px 12px; border-radius: 14px; background: light-dark(rgba(0,0,0,.035), rgba(255,255,255,.05)); font: 12.5px/1.45 var(--font-mono, ui-monospace, monospace); }
+.live-log li.is-thought { font: 14px/1.45 var(--font-sans); }
+@media (max-width: 699px) {
+  .steps { gap: 4px; }
+  .steps li { font-size: 0; gap: 0; }
+  .step-label { display: block; margin: 0; font: var(--weight-medium) 14px/1.3 var(--font-sans); color: var(--label); }
+  .live-log li:nth-last-child(n+5) { display: none; }
+  #view-plan[data-state="running"] .summary { font-size: var(--text-headline); }
+}
+@media (prefers-reduced-motion: reduce) { .live-head .live-dot { animation: none; } }

@@ -60,7 +60,7 @@ async function init() {
   routeFromUrl();
 }
 
-const heroLabel = () => t('Run the {name} demo', { name: S.cfg?.demos?.[0]?.artist || '' }).replace('  ', ' ').trim();
+const heroLabel = () => (matchMedia('(max-width: 699px)').matches ? t('Run the demo') : t('Run the {name} demo', { name: S.cfg?.demos?.[0]?.artist || '' }).replace('  ', ' ').trim());
 
 function renderDemos() {
   const demos = S.cfg.demos;
@@ -230,6 +230,9 @@ function run(input, { rid, keepView = false, demoIndex } = {}) {
   $('#planToggle input[value="qloo"]').checked = true; $('#planToggle input[value="qloo"]').dispatchEvent(new Event('change', { bubbles: true }));
   $('#summary').innerHTML = `<strong>${t('Planning {artist}.', { artist: esc(input.artist) })}</strong> <span class="muted" id="thought">${t('Connecting to the agent…')}</span>`;
   $('#live').hidden = false; $('#liveLog').innerHTML = ''; $('#steps').innerHTML = '';
+  clearInterval(S.liveTimer); const t0 = Date.now();
+  const tick = () => { const el = $('#liveMeta'); if (el) el.textContent = `${Math.round((Date.now() - t0) / 1000)} s · ${plural(S.calls.length, 'Qloo request')}`; };
+  tick(); S.liveTimer = setInterval(tick, 500);
   resetAgentView();
   drawBaseMap();
   updateToolbar();
@@ -340,7 +343,7 @@ function restoreSession() {
 function failRun(title, msg, { keepPending = false } = {}) {
   S.running = false; S.es = null; if (!keepPending) clearPending();
   setBusy(false);
-  $('#live').hidden = true;
+  $('#live').hidden = true; clearInterval(S.liveTimer);
   $('#view-plan').dataset.state = 'empty';
   $('#summary').innerHTML = `<strong>${t('No plan for {artist} yet.', { artist: esc(S.input?.artist || t('this act')) })}</strong> <span class="muted">${t('Nothing was saved. The details are below.')}</span>`;
   showPlanError(title, msg, true);
@@ -498,7 +501,7 @@ const guard = (title, sub) => `<li><div class="ui-row"><span class="ui-row__icon
 // ---------------- results ----------------
 function render() {
   const b = S.book;
-  $('#live').hidden = true;
+  $('#live').hidden = true; clearInterval(S.liveTimer);
   if (!b?.markets) {
     failRun(t('No market ranking came back'), t('The agent could not resolve this act. Add three sound-alike acts and try again.'));
     return;
@@ -596,7 +599,14 @@ function setTab(name, focus = false) {
 }
 function bindTabs() {
   const bar = $('#resultTabs'); if (!bar) return;
-  bar.addEventListener('click', (e) => { const b = e.target.closest('[role="tab"]'); if (!b) return; setTab(b.dataset.tab); const top = bar.getBoundingClientRect().top; if (top < 0 || top > innerHeight * 0.6) bar.scrollIntoView({ block: 'start', behavior: reduceMotion() ? 'auto' : 'smooth' }); });
+  bar.addEventListener('click', (e) => {
+    const b = e.target.closest('[role="tab"]'); if (!b) return;
+    setTab(b.dataset.tab);
+    // Always land on the top of the new panel, right under the sticky tab bar (never in its middle).
+    const panel = $(`.result-panel[data-panel="${b.dataset.tab}"]`); if (!panel) return;
+    const gap = panel.getBoundingClientRect().top - bar.getBoundingClientRect().bottom - 10;
+    if (gap < 0 || bar.getBoundingClientRect().top > innerHeight * 0.6) scrollBy({ top: gap, behavior: reduceMotion() ? 'auto' : 'smooth' });
+  });
   bar.addEventListener('keydown', (e) => {
     const tabs = $$('#resultTabs [role="tab"]'); const i = tabs.findIndex((b) => b.dataset.tab === S.tab);
     const j = e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowLeft' ? i - 1 : e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : null;
@@ -747,7 +757,9 @@ function renderAudience() {
 
 function renderMomentum() {
   const m = S.book.momentum;
-  if (!m?.series?.length) { $('#momentum').innerHTML = `<p class="ui-footnote ui-secondary">${t('No trend data for this window. Room sizes fall back to the taste score alone.')}</p>`; return; }
+  const ys0 = (m?.series || []).map((p) => Number(p.percentile)).filter(Number.isFinite);
+  const flat = ys0.length && Math.max(...ys0) - Math.min(...ys0) < 0.5 && Math.max(...ys0) <= 1; // Qloo has no weekly signal for this act
+  if (!m?.series?.length || flat) { $('#momentum').innerHTML = `<p class="ui-footnote ui-secondary">${t('No trend data for this window. Room sizes fall back to the taste score alone.')}</p>`; return; }
   const series = [...m.series].sort((x, y) => String(x.date).localeCompare(String(y.date)));
   const fmt = (d) => new Date(`${d}T00:00:00`).toLocaleDateString(LOCALE, { month: 'short', day: 'numeric' });
   $('#momentumSub').innerHTML = t('{from} to {to}, weekly percentile from <code>/v2/trending</code>', { from: esc(fmt(series[0].date)), to: esc(fmt(series.at(-1).date)) });

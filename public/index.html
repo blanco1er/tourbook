@@ -101,15 +101,24 @@
       <section class="view page" id="view-plan" data-view="plan" data-state="empty" aria-labelledby="tbTitle">
 
         <div class="lead">
-          <p class="summary" id="summary" aria-live="polite"><strong>Population lies, taste doesn’t.</strong> A mid-size act usually tours New York, Los Angeles and Chicago. Tourbook’s agent asks Qloo where the act’s fans actually over-index, then preps every date with its evidence.</p>
+          <p class="summary" id="summary" aria-live="polite"><strong>Population lies, taste doesn’t.</strong><span class="sum-rest"> A mid-size act usually tours New York, Los Angeles and Chicago. Tourbook’s agent asks Qloo where the act’s fans actually over-index, then preps every date with its evidence.</span></p>
 
           <div class="lead-actions" id="leadActions">
-            <button class="ui-button ui-button--prominent ui-button--lg" type="button" id="heroDemo" data-run-demo="0"><svg class="ui-icon is-filled"><use href="#i-play"/></svg><span>Run the demo</span></button>
-            <button class="ui-button ui-button--lg" type="button" data-new-plan>Plan your own act</button>
+            <p class="hero-short">Tourbook asks Qloo where an act’s fans really over-index, then preps every date with its proof.</p>
+            <ul class="hero-facts" aria-label="Tourbook in figures">
+              <li><b>34</b><span>US metros scored</span></li>
+              <li><b>1</b><span>national heatmap call</span></li>
+              <li><b>0</b><span>rejected parameters</span></li>
+            </ul>
+            <div class="hero-buttons">
+              <button class="ui-button ui-button--prominent ui-button--lg" type="button" id="heroDemo" data-run-demo="0"><svg class="ui-icon is-filled"><use href="#i-play"/></svg><span>Run the demo</span></button>
+              <button class="ui-button ui-button--lg" type="button" data-new-plan>Plan your own act</button>
+            </div>
             <p class="ui-footnote ui-secondary lead-note">About a minute, no sign-up. Every tool call and Qloo request shows up as it happens.</p>
           </div>
 
           <div class="live" id="live" hidden>
+            <div class="live-head"><span class="live-dot" aria-hidden="true"></span><b>Agent at work</b><span class="live-meta" id="liveMeta"></span></div>
             <ol class="steps" id="steps" aria-label="Agent progress"></ol>
             <p class="step-label" id="stepLabel" aria-hidden="true"></p>
             <ul class="live-log" id="liveLog" aria-label="Latest agent actions"></ul>
