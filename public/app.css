@@ -1094,3 +1094,71 @@ button.live-head { width: 100%; padding: 0; border: 0; background: none; text-al
 .sugg-maybe { padding: 8px 10px 2px; font: var(--weight-semibold) 12px var(--font-sans); color: var(--label-tertiary); text-transform: uppercase; letter-spacing: .04em; }
 /* Every "accept / validate" button is green (owner, 30 Oct): Validate the tour, Apply a proposed change */
 #askApply.ui-button--prominent, .btn-ok { background: var(--ok-strong); color: #fff; box-shadow: 0 6px 18px light-dark(rgba(14,138,62,.28), rgba(0,0,0,.4)); }
+
+/* ================= Flat, modern layout (owner, 30 Oct: "too many blocks") =================
+   Content sits on the page itself: no white cards, no shadows, no boxes inside boxes.
+   Lists are rows separated by hairlines; figures are separated by thin rules. */
+.ui-root .ui-list, .ui-root .ui-table-wrap { background: transparent; border-radius: 0; box-shadow: none; border-top: 0.5px solid var(--separator); border-bottom: 0.5px solid var(--separator); }
+.ui-root .ui-list .ui-row { padding-left: 0; padding-right: 0; }
+.ui-root .ui-list .ui-row::before { left: 0 !important; }
+.ui-root .ui-list:has(.ui-row__icon) .ui-row::before { left: 40px !important; }
+.ui-root .ui-list__header, .ui-root .ui-list__footer { margin-left: 0; margin-right: 0; }
+/* figures */
+.ui-root .lead .ui-stats, .ui-root #agentStats, .ui-root .room-stats { background: transparent !important; box-shadow: none !important; border-radius: 0 !important; margin-left: 0 !important; margin-right: 0 !important; padding: 10px 0 !important; border-top: 0.5px solid var(--separator); border-bottom: 0.5px solid var(--separator); }
+.ui-root .hero-facts li { background: transparent !important; box-shadow: none !important; border-radius: 0 !important; padding: 2px 12px 2px 0 !important; }
+.ui-root .hero-facts li + li { border-left: 0.5px solid var(--separator); padding-left: 12px !important; }
+/* home demo acts: a plain list */
+.ui-root #bodyDemos .ui-row { background: transparent !important; box-shadow: none !important; border-radius: 0 !important; }
+/* agent timeline */
+.ui-root .tl-stage { background: transparent; box-shadow: none; border-radius: 0; padding: 14px 0 6px; }
+.ui-root .tl-stage + .tl-stage { border-top: 0.5px solid var(--separator); }
+.ui-root .runlog { gap: 0; }
+.ui-root .runlog .final { background: transparent; border-radius: 0; padding: 14px 0; border-top: 0.5px solid var(--separator); }
+.ui-root .tl-body { background: light-dark(rgba(0,0,0,.03), rgba(255,255,255,.04)); }
+/* rooms */
+.ui-root .fame, .ui-root .act-list { background: transparent; box-shadow: none; border-radius: 0; padding-left: 0; padding-right: 0; }
+.ui-root .fame { border-bottom: 0.5px solid var(--separator); }
+.ui-root .act { padding-left: 0; padding-right: 0; }
+.ui-root .act-list { border-bottom: 0.5px solid var(--separator); }
+.ui-root .hood-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.ui-root .hood { display: inline-flex; align-items: baseline; gap: 6px; min-height: 36px; padding: 6px 14px; border-radius: 999px; background: transparent; box-shadow: inset 0 0 0 0.5px var(--label-tertiary); }
+.ui-root .hood small { font-size: 13px; }
+.ui-root .hood[aria-pressed="true"] { background: var(--label); box-shadow: none; }
+.ui-root .hood[aria-pressed="true"] b { color: var(--bg); } .ui-root .hood[aria-pressed="true"] small { color: color-mix(in srgb, var(--bg) 70%, transparent); }
+.ui-root .room-wide { background: transparent; padding: 0; border-radius: 0; }
+/* ask */
+.ui-root .ask-sug { background: transparent !important; box-shadow: none !important; border-radius: 0 !important; padding-left: 0; padding-right: 0; }
+.ui-root .ask-grid { gap: 0 !important; border-top: 0.5px solid var(--separator); }
+.ui-root .ask-grid > * + * { border-top: 0.5px solid var(--separator); }
+.ui-root .ask-card { background: transparent; box-shadow: none; border-radius: 0; padding-left: 0; padding-right: 0; border-top: 0.5px solid var(--separator); }
+/* live suggestions, "not them?" list */
+.ui-root .sugg { background: transparent; box-shadow: none; border-radius: 0; padding: 0; gap: 0; }
+.ui-root .sugg > li + li { border-top: 0.5px solid var(--separator); }
+.ui-root .sugg-row { border-radius: 0; padding-left: 0; padding-right: 0; }
+.ui-root .sugg-none { padding: 10px 0; }
+.ui-root .sugg-go { background: none; color: var(--ok); padding: 6px 0; }
+.ui-root .sugg-ok { background: transparent; padding: 6px 0 0; border-radius: 0; }
+.ui-root .proxies.is-callout { box-shadow: none; padding: 0; }
+.ui-root .who-list { gap: 0; }
+.ui-root .who-row { background: transparent; box-shadow: none; border-radius: 0; padding-left: 0; padding-right: 0; }
+.ui-root .who-list > li + li { border-top: 0.5px solid var(--separator); }
+
+/* ================= Colour system (owner, 30 Oct: no inconsistencies) =================
+   Orange = the brand and the data: the button that starts something (demo, Build, search, send) and everything
+            drawn on the map, the charts and the poster.
+   Green  = progress and approval: Validate, Apply, check marks, the progress bar and every "in progress" signal.
+   Neutral = everything else, text included. */
+.ui-root .live-dot, .ui-root .room-loading__dot, .ui-root .sugg-wait .live-dot, .ui-root .poster-busy .live-dot { background: var(--ok) !important; }
+.ui-root .tl-stage.is-live .tl-n, .ui-root .lv-stage.is-active .lv-n { background: var(--ok); color: #fff; box-shadow: 0 0 0 4px var(--ok-soft); }
+.ui-root .tl-item.is-running .tl-state, .ui-root .lv-line.is-running .lv-state { border-color: var(--ok); border-right-color: transparent; }
+.ui-root .sugg-go { color: var(--label); text-decoration: underline; text-underline-offset: 3px; }
+.ui-root .ask-badge.is-live, .ui-root .ask-step.is-live { color: var(--label); }
+.ui-root .ask-badge { color: var(--label); background: var(--taste-soft); }
+.ui-root .ask-diff__row.is-in { background: var(--ok-soft); }
+.ui-root .ask-diff__row.is-in .ask-diff__sign { background: var(--ok); }
+.ui-root .panel { background: transparent; border-radius: 0; padding: 14px 0 12px; border-top: 0.5px solid var(--separator); }
+.ui-root .ask-sug__ic { background: var(--taste-soft); }
+.ui-root .ask-sug__ic svg { stroke: var(--label); }
+/* phone, scrolled plan: Home + tools leave no room for the name, so the compact bar keeps the buttons only */
+@media (max-width: 699px) { #toolbar.is-scrolled:has(#homeBtn:not([hidden])) .tb-title { display: none; } }
+.ui-root .runlog { background: transparent !important; border-radius: 0 !important; box-shadow: none !important; padding: 0 !important; }
