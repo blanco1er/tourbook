@@ -44,6 +44,7 @@
     'national heatmap call': 'appel heatmap national',
     'rejected parameters': 'paramètre rejeté',
     'New tour': 'Nouvelle tournée',
+    'Home': 'Accueil',
     'What the agent is doing': 'Ce que fait l’agent',
     'Every step and every Qloo request shows up as it happens.': 'Chaque étape et chaque requête Qloo s’affichent en direct.',
     'Search': 'Recherche', 'Overlap': 'Recoupement', 'Trend': 'Tendance', 'Fan heat': 'Chaleur', 'Audience': 'Public', 'Insights': 'Affinités',

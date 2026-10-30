@@ -36,6 +36,7 @@ init();
 
 // ---------------- boot ----------------
 async function init() {
+  S.homeSummary = $('#summary').innerHTML; // the home pitch, put back by goHome()
   bindUi();
   try {
     const r = await fetch('/api/config');
@@ -81,7 +82,8 @@ function bindUi() {
   $('#liveToggle').addEventListener('click', () => setLiveOpen(!$('#live').classList.contains('is-open')));
   document.addEventListener('click', (e) => {
     const nav = e.target.closest('[data-nav]');
-    if (nav) { e.preventDefault(); setView(nav.dataset.nav); return; }
+    if (nav) { e.preventDefault(); if (nav.dataset.nav === 'plan' && S.view === 'plan' && S.book && !S.running) goHome(); else setView(nav.dataset.nav); return; } // tapping the active Plan tab goes back home, like iOS
+    if (e.target.closest('#homeBtn')) { goHome(); return; }
     const demo = e.target.closest('[data-run-demo]');
     if (demo) { e.preventDefault(); runDemo(Number(demo.dataset.runDemo)); return; }
     if (e.target.closest('[data-new-plan]')) { openPlanSheet(); return; }
@@ -153,6 +155,7 @@ function updateToolbar() {
   $('#tbSub').textContent = sub;
   document.title = S.view === 'plan' && S.book ? `${title} · Tourbook` : 'Tourbook';
   $('#planTools').hidden = !(S.view === 'plan' && S.book && !S.running);
+  $('#homeBtn').hidden = !(S.view === 'plan' && S.book && !S.running);
   $('#newPlanBtn').classList.toggle('ui-button--prominent', Boolean(S.book) && S.view === 'plan');
   const n = S.calls.length; $('[data-agent-count]').textContent = n ? n : '';
 }
@@ -293,7 +296,7 @@ function run(input, { rid, keepView = false, demoIndex } = {}) {
     setBusy(false); render();
     history.replaceState(null, '', `?${shareParams()}${location.hash}`);
     clearPending(); saveSession();
-    toast({ title: t('{name} is planned', { name: book.artist?.selected?.name || input.artist }), detail: t('{requests} in {s} s', { requests: plural(book.meta.calls, 'Qloo request'), s: dec((book.meta.ms / 1000).toFixed(1)) }), tone: 'ok' });
+    toast({ title: t('{name} is planned', { name: book.artist?.selected?.name || input.artist }), detail: book.meta.ms < 1000 ? t('Replayed from cached Qloo answers.') : t('{requests} in {s} s', { requests: plural(book.meta.calls, 'Qloo request'), s: dec((book.meta.ms / 1000).toFixed(1)) }), tone: 'ok' });
   });
   on('fail', (d) => { es.close(); failRun(d.code === 'daily_cap' ? t('Daily limit reached') : t('The agent stopped'), t(d.error || 'Unknown error.')); });
   es.onerror = () => {
@@ -348,6 +351,26 @@ function restoreSession() {
   }
   render();
   return true;
+}
+
+// Back to the home screen from a finished plan (owner, 30 Oct: there was no way back).
+function goHome() {
+  if (S.running) return;
+  stopVoice(); if ($('#sheet-dossier').open) closeSheet('sheet-dossier');
+  S.book = null; S.input = null; S.trace = []; S.calls = []; S.tools = 0; S.plan = 'qloo'; S.liveTop = null; S.heat = null;
+  try { sessionStorage.removeItem(SESSION_KEY); } catch { /* storage blocked */ }
+  clearPending();
+  const v = $('#view-plan'); v.dataset.state = 'empty';
+  $('#summary').innerHTML = S.homeSummary;
+  $('#stats').hidden = true; $('#planToggle').hidden = true; $('#planError').hidden = true; $('#live').hidden = true;
+  $('#agentEmpty').hidden = false; $('#agentBody').hidden = true; $('#runlog').innerHTML = '';
+  if ($('#mapwrap').classList.contains('is-expanded')) setMapExpanded(false);
+  drawBaseMap();
+  S.map?.fitBounds(US, { padding: mapPadding(), duration: reduceMotion() ? 0 : 700 });
+  history.replaceState(null, '', `${location.pathname}${LANG === 'fr' ? '?lang=fr' : ''}`);
+  setView('plan');
+  updateToolbar();
+  scrollTo({ top: 0, behavior: 'auto' }); requestAnimationFrame(() => scrollTo({ top: 0, behavior: 'auto' }));
 }
 
 function failRun(title, msg, { keepPending = false } = {}) {
