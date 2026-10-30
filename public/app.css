@@ -1092,3 +1092,5 @@ button.live-head { width: 100%; padding: 0; border: 0; background: none; text-al
 .sugg-ok { max-width: 100%; min-width: 0; overflow: hidden; }
 .sugg-ok span { flex: 1; }
 .sugg-maybe { padding: 8px 10px 2px; font: var(--weight-semibold) 12px var(--font-sans); color: var(--label-tertiary); text-transform: uppercase; letter-spacing: .04em; }
+/* Every "accept / validate" button is green (owner, 30 Oct): Validate the tour, Apply a proposed change */
+#askApply.ui-button--prominent, .btn-ok { background: var(--ok-strong); color: #fff; box-shadow: 0 6px 18px light-dark(rgba(14,138,62,.28), rgba(0,0,0,.4)); }

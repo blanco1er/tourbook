@@ -26,7 +26,8 @@ const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', 1); // behind Render's proxy: req.ip is the visitor, so the daily cap is per visitor
 app.use(express.json({ limit: '32kb' }));
-app.use(express.static(join(__dirname, 'public'), { extensions: ['html'] }));
+// no-cache = revalidate every time (ETag): a phone never keeps an old version of the app after a deploy
+app.use(express.static(join(__dirname, 'public'), { extensions: ['html'], setHeaders: (res) => res.set('Cache-Control', 'no-cache') }));
 
 // ---- guardrail: N agent runs per IP per day (protects LLM + Qloo quota during judging) ----
 const runs = new Map();
