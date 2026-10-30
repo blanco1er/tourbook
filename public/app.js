@@ -81,6 +81,12 @@ function bindUi() {
   bindTabs(); bindAsk(); bindRooms();
   $('#liveToggle').addEventListener('click', () => setLiveOpen(!$('#live').classList.contains('is-open')));
   $('#validateBtn').addEventListener('click', openPoster);
+  $('#saveBtn').addEventListener('click', () => { if (isSaved()) unsaveTour(savedId()); else saveTour(); });
+  $('#savedList').addEventListener('click', (e) => {
+    const del = e.target.closest('[data-unsave]'); if (del) { unsaveTour(del.dataset.unsave); return; }
+    const o = e.target.closest('[data-saved]'); if (o) openSaved(o.dataset.saved);
+  });
+  renderSaved();
   $('#actId').addEventListener('click', (e) => { if (e.target.closest('#whoBtn')) openWho(); });
   $('#whoList').addEventListener('click', (e) => {
     const r = e.target.closest('[data-who]'); if (!r) return;
@@ -354,6 +360,52 @@ function saveSession() {
   try { sessionStorage.setItem(SESSION_KEY, JSON.stringify({ params: shareParams(), lang: LANG, input: S.input, book: S.book, trace: S.trace })); } catch { /* private mode or quota: reload simply re-runs */ }
 }
 /** Same URL reloaded in this tab: show the finished plan at once instead of spending Qloo calls again. */
+// ---------------- my tours (owner, 30 Oct: a tour was lost on the way back home) ----------------
+// Saved on this device only (no account): the finished plan, its agent log and its poster, reopened without a new run.
+const SAVED_KEY = 'tourbook:saved';
+const savedId = (b = S.book) => (b ? `${b.artist?.selected?.id || b.artist?.selected?.name}|${b.createdAt}` : '');
+function readSaved() { try { return JSON.parse(localStorage.getItem(SAVED_KEY) || '[]'); } catch { return []; } }
+function writeSaved(list) {
+  for (let keep = list.length; keep > 0; keep--) { // quota: drop the agent logs, then the oldest tours
+    try { localStorage.setItem(SAVED_KEY, JSON.stringify(list.slice(0, keep))); return true; } catch { list = list.map((x, i) => (i >= keep - 1 ? { ...x, trace: [] } : x)); }
+  }
+  return false;
+}
+function isSaved() { const id = savedId(); return !!id && readSaved().some((x) => x.id === id); }
+function saveTour({ quiet = false } = {}) {
+  if (!S.book) return;
+  const b = S.book; const id = savedId(b);
+  const entry = { id, savedAt: Date.now(), lang: LANG, name: b.artist?.selected?.name || S.input?.artist, photo: b.artist?.selected?.photo || null, type: S.input?.type || 'artist', stops: b.markets?.top?.length || 0, lead: b.markets?.top?.[0]?.name || '', params: shareParams(), input: S.input, book: b, trace: S.trace, poster: S.posterArt || null, posterFull: !!S.posterFull };
+  const list = [entry, ...readSaved().filter((x) => x.id !== id)].slice(0, 12);
+  const ok = writeSaved(list);
+  updateSaveBtn(); renderSaved();
+  if (!quiet) toast({ title: ok ? t('Tour saved') : t('This device is out of space'), detail: ok ? t('Find it under My tours on the home screen.') : t('Delete an old tour and try again.'), tone: ok ? 'ok' : undefined });
+}
+function unsaveTour(id) { writeSaved(readSaved().filter((x) => x.id !== id)); updateSaveBtn(); renderSaved(); }
+function updateSaveBtn() { const b = $('#saveBtn'); if (!b) return; const on = isSaved(); b.setAttribute('aria-pressed', String(on)); b.setAttribute('aria-label', t(on ? 'Tour saved' : 'Save this tour')); }
+function renderSaved() {
+  const list = readSaved(); const box = $('#savedBlock'); if (!box) return;
+  box.hidden = !list.length;
+  $('#savedNote').textContent = list.length ? t('{n} on this device', { n: list.length }) : '';
+  $('#savedList').innerHTML = list.map((x) => `<li><div class="saved-row"><button type="button" class="saved-open" data-saved="${esc(x.id)}">${x.photo ? `<img src="/api/photo/${x.photo}" alt="" loading="lazy">` : `<span class="saved-ph">${icon('i-map')}</span>`}<span class="saved-txt"><b>${esc(x.name)}</b><small>${esc([t('{n} stops', { n: x.stops }), x.lead, new Date(x.savedAt).toLocaleDateString(LOCALE, { day: 'numeric', month: 'short' })].filter(Boolean).join(' · '))}</small></span></button><button type="button" class="saved-del" data-unsave="${esc(x.id)}" aria-label="${esc(t('Remove {name} from my tours', { name: x.name }))}">${icon('i-x')}</button></div></li>`).join('');
+}
+function openSaved(id) {
+  const x = readSaved().find((y) => y.id === id); if (!x?.book?.markets) return;
+  S.es?.close(); S.running = false;
+  S.input = x.input; S.book = x.book; S.trace = x.trace || []; S.calls = []; S.tools = 0; S.curTool = null; S.plan = 'qloo';
+  S.posterArt = x.poster || null; S.posterFull = !!x.posterFull; S.validated = !!x.poster; S.act = null;
+  fillForm(S.input); resetAgentView();
+  for (const [type, d] of S.trace) {
+    if (type === 'thought') agentLine({ kind: 'thought', text: d.text });
+    else if (type === 'tool' && d.status === 'start') { S.tools++; agentLine({ kind: 'tool', d }); }
+    else if (type === 'tool' && d.status === 'error') agentLine({ kind: 'toolerr', d });
+    else if (type === 'call' && d.status !== 'start') { S.calls.push(d); agentLine({ kind: 'call', d }); }
+  }
+  history.replaceState(null, '', `?${x.params}`);
+  setView('plan'); render(); updateValidate(); updateSaveBtn(); saveSession();
+  scrollTo({ top: 0, behavior: 'auto' });
+}
+
 function restoreSession() {
   let saved;
   try { saved = JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null'); } catch { return false; }
@@ -386,6 +438,7 @@ function goHome() {
   drawBaseMap();
   S.map?.fitBounds(US, { padding: mapPadding(), duration: reduceMotion() ? 0 : 700 });
   history.replaceState(null, '', `${location.pathname}${LANG === 'fr' ? '?lang=fr' : ''}`);
+  renderSaved();
   setView('plan');
   updateToolbar();
   scrollTo({ top: 0, behavior: 'auto' }); requestAnimationFrame(() => scrollTo({ top: 0, behavior: 'auto' }));
@@ -687,6 +740,7 @@ function render() {
   const view = $('#view-plan');
   view.dataset.state = 'ready';
   if (b.artist?.selected) showActId(b.artist.selected, b.artist.candidates || []);
+  updateSaveBtn();
   const live = b.meta.qloo === 'live';
   const top = b.markets.top; const lead = top[0];
   const hidden = top.filter((m) => m.hidden).length;
@@ -1014,13 +1068,15 @@ function startScan() {
   const order = () => S.markers.map((m) => ({ m, k: m.getLngLat().lng + (Math.random() - 0.5) * 6 })).sort((a, b) => a.k - b.k).map((x) => x.m);
   let queue = order(), i = 0, read = 0;
   const total = S.markers.length;
+  // the title is set once; only the counter changes (rewriting it on every tick replayed its entrance and made it shake)
+  setMapTitle(`<span class="live-dot"></span>${t('Reading taste · {n}/{m} metros', { n: '<b class="scan-n">0</b>', m: total })}`);
   const tick = () => {
     if (!S.markers.length) return;
     if (i >= queue.length) { queue = order(); i = 0; read = 0; }
     const el = queue[i++].getElement();
     el.classList.remove('is-ping'); void el.offsetWidth; el.classList.add('is-ping');
     read++;
-    setMapTitle(`<span class="live-dot"></span>${t('Reading taste · {n}/{m} metros', { n: read, m: total })}`);
+    const n = $('#mapTitle .scan-n'); if (n) n.textContent = read;
     S.scanTimer = setTimeout(tick, reduceMotion() ? 260 : 60 + Math.random() * 70);
   };
   tick();
@@ -1680,7 +1736,7 @@ function tourStops() {
 }
 async function openPoster() {
   if (!S.book) return;
-  S.validated = true; updateValidate();
+  S.validated = true; updateValidate(); saveTour({ quiet: true });
   openSheet('sheet-poster');
   const sel = S.book.artist.selected;
   if (!S.act || S.act.key !== sel.id) {
@@ -1811,7 +1867,7 @@ async function makePosterArt() {
     const r = await fetch('/api/poster', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ entityId: b.artist.selected.id, name: b.artist.selected.name, description: b.artist.selected.description || '', kind: S.input?.type || 'artist', genres: S.act?.genres || [], themes, cities: tourStops().map((s) => s.name), stops: tourStops().map((s) => `${s.name}, ${s.state}`), photo: S.act?.photo || b.artist.selected.photo || null, lang: LANG }) });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw Object.assign(new Error(j.error || `HTTP ${r.status}`), { code: j.code });
-    S.posterArt = j.url; S.posterFull = !!j.full; btn.hidden = true;
+    S.posterArt = j.url; S.posterFull = !!j.full; btn.hidden = true; if (isSaved()) saveTour({ quiet: true });
     await drawPoster();
   } catch (e) {
     toast({ title: e.code === 'no_image_model' ? t('No image model on this server') : t('The artwork could not be made'), detail: e.code === 'no_image_model' ? t('The poster keeps its typographic version.') : t(e.message) });

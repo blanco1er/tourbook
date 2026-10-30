@@ -42,6 +42,7 @@
   <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 3.5v11M8 7.5l4-4 4 4"/><path d="M7 11H5.5v9.5h13V11H17"/></symbol>
   <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M8 11l4 4 4-4"/><path d="M5 19.5h14"/></symbol>
   <symbol id="i-image" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><circle cx="9" cy="10" r="1.8"/><path d="m20.5 15.5-5-5-9 9"/></symbol>
+  <symbol id="i-bookmark" viewBox="0 0 24 24"><path d="M6.5 4.5h11v15.5L12 16l-5.5 4z"/></symbol>
   <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.4"/></symbol>
   <symbol id="i-route" viewBox="0 0 24 24"><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="6" r="2.2"/><path d="M8 18h7.5a3.5 3.5 0 0 0 0-7h-7a3.5 3.5 0 0 1 0-7H16"/></symbol>
   <symbol id="i-x" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
@@ -97,6 +98,7 @@
       </nav>
       <div class="ui-toolbar__group ui-glass" id="planTools" hidden>
         <button class="ui-icon-button" type="button" id="voiceBtn" aria-label="Play the voice briefing" title="Voice briefing" hidden><svg class="ui-icon"><use href="#i-speaker"/></svg></button>
+        <button class="ui-icon-button" type="button" id="saveBtn" aria-label="Save this tour" title="Save the tour" aria-pressed="false"><svg class="ui-icon"><use href="#i-bookmark"/></svg></button>
         <button class="ui-icon-button" type="button" id="shareBtn" aria-label="Copy a link to this plan" title="Copy link"><svg class="ui-icon"><use href="#i-link"/></svg></button>
         <button class="ui-icon-button" type="button" id="printBtn" aria-label="Save the plan as PDF" title="Save as PDF"><svg class="ui-icon"><use href="#i-print"/></svg></button>
       </div>
@@ -170,6 +172,10 @@
 
         <!-- Empty state -->
         <div class="when-empty">
+          <section class="ui-list-section block saved-block" id="savedBlock" hidden>
+            <div class="ui-list__header"><strong>My tours</strong><span id="savedNote"></span></div>
+            <ul class="ui-list saved-list" id="savedList"></ul>
+          </section>
           <div class="grid-2 block">
             <div class="ui-list-section hide-wide">
               <div class="ui-list__header"><strong>Demo acts</strong><span id="demoActsNote">One tap each</span></div>
