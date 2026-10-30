@@ -690,8 +690,8 @@ function heatPaint(opacity) {
     'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 3, 0.75, 6, 1.4, 9, 2.2],
     'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 3, 15, 4, 21, 6, 40, 9, 80],
     'heatmap-color': dark
-      ? ['interpolate', ['linear'], ['heatmap-density'], 0, 'rgba(107,58,34,0)', 0.2, 'rgba(140,64,30,0.4)', 0.45, '#A9481A', 0.75, '#E8733A', 1, '#FFA066']
-      : ['interpolate', ['linear'], ['heatmap-density'], 0, 'rgba(247,201,169,0)', 0.2, 'rgba(247,190,150,0.45)', 0.45, '#F29A62', 0.75, '#E2561F', 1, '#B23A0E'],
+      ? ['interpolate', ['linear'], ['heatmap-density'], 0, 'rgba(40,44,120,0)', 0.2, 'rgba(58,66,170,0.42)', 0.45, '#4A5BE0', 0.75, '#7C8CFF', 1, '#C9D1FF']
+      : ['interpolate', ['linear'], ['heatmap-density'], 0, 'rgba(199,210,254,0)', 0.2, 'rgba(165,180,252,0.42)', 0.45, '#818CF8', 0.75, '#5B5BD6', 1, '#3730A3'],
     'heatmap-opacity': opacity,
   };
 }
