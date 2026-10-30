@@ -96,22 +96,31 @@ function fullPosterPrompt(dir, { name, lines, footer, hasPhoto }) {
     dir.typography ? `Typography: ${dir.typography}.` : '',
     hasPhoto ? `The attached image is the real photograph of ${name}. Integrate it into the design${dir.photo ? ` (${dir.photo})` : ''}. Keep the people in it exactly as photographed: do not redraw, restyle, replace or add any face or person.` : 'No people, no faces.',
     'Render this text exactly, spelled exactly as written, and no other words, letters or numbers anywhere:',
-    `- headline: "${name}"`,
+    `- headline: "${name}" (the full name, exactly; never shortened)`,
     `- the tour stops, in this order, one per line: ${lines.map((l) => `"${l}"`).join(', ')}`,
     `- small footer: "${footer}"`,
-    'All text must be sharp, legible and correctly spelled. No logos, no fake brand names, no extra captions.',
+    'All text must be sharp, legible and correctly spelled. No other text at all: no credits, no small print, no invented names, no dates, no logos, no brand names, no captions.',
   ].filter(Boolean).join('\n');
 }
 
+// Proofreading is done in code, not left to the model's judgement: the vision model transcribes every piece of text
+// on the poster, then each expected string must be found and nothing else may appear (a GIMS for "Maître Gims" or a
+// column of invented credits fails).
+const norm = (v) => String(v || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
 async function checkText(llm, b64, expected) {
   if (!llm || llm.kind === 'mock') return { ok: true, skipped: true };
   try {
     const r = await llm.chat({ json: true, messages: [
-      { role: 'system', content: 'You proofread poster images. Return JSON only: {"ok": boolean, "issues": [string]}. ok is true only if every expected string appears legibly and spelled exactly, and there is no other misspelled or garbled text.' },
-      { role: 'user', content: [{ type: 'text', text: `Expected strings: ${JSON.stringify(expected)}` }, { type: 'image_url', image_url: { url: `data:image/png;base64,${b64}` } }] },
+      { role: 'system', content: 'Transcribe every piece of visible text in this poster image, exactly as written (keep the spelling you see, even if it looks wrong), one entry per line of text. Return JSON only: {"lines": [string]}.' },
+      { role: 'user', content: [{ type: 'text', text: 'Transcribe all text.' }, { type: 'image_url', image_url: { url: `data:image/png;base64,${b64}` } }] },
     ] });
-    const d = JSON.parse(r.content || '{}');
-    return { ok: d.ok === true, issues: Array.isArray(d.issues) ? d.issues.slice(0, 5) : [] };
+    const seen = (JSON.parse(r.content || '{}').lines || []).map(norm).filter(Boolean);
+    const all = ` ${seen.join(' ')} `;
+    const want = expected.map(norm);
+    const missing = want.filter((w) => !all.includes(` ${w} `) && !all.includes(w));
+    const wantWords = new Set(want.join(' ').split(' '));
+    const extra = seen.filter((l) => l.split(' ').some((w) => w.length > 2 && !wantWords.has(w)));
+    return { ok: !missing.length && !extra.length, missing, extra: extra.slice(0, 6) };
   } catch { return { ok: true, skipped: true }; }
 }
 
@@ -120,7 +129,7 @@ export const posterFile = (hash) => (/^[a-f0-9]{20}$/.test(hash) ? resolve(CACHE
 
 /** Returns { hash, cached, model } once the art exists on disk. Throws with a status when it cannot be made. */
 export async function posterArt({ entityId, name, description, kind, genres, themes, cities, stops = [], photo, lang = 'en', beforeGenerate, llm }) {
-  const hash = hashOf({ v: 4, entityId, kind, genres, themes, cities, stops, lang }); // one poster per act, tour and language
+  const hash = hashOf({ v: 5, entityId, kind, genres, themes, cities, stops, lang }); // one poster per act, tour and language
   const file = posterFile(hash);
   if (existsSync(file)) return { hash, cached: true, model: null, full: true };
   const key = imageKey(); const model = await imageModel();
@@ -150,7 +159,7 @@ export async function posterArt({ entityId, name, description, kind, genres, the
   // paint, proofread the text, paint once more if a word is wrong
   let b64 = await paint();
   let check = await checkText(llm, b64, [name, ...lines, footer]);
-  if (!check.ok) { const again = await paint(); const c2 = await checkText(llm, again, [name, ...lines, footer]); if (c2.ok || c2.skipped) { b64 = again; check = c2; } }
+  for (let tries = 0; !check.ok && tries < 2; tries++) { const again = await paint(); const c2 = await checkText(llm, again, [name, ...lines, footer]); const score = (c) => (c.missing?.length || 0) * 3 + (c.extra?.length || 0); if (c2.ok || c2.skipped || score(c2) < score(check)) { b64 = again; check = c2; } }
   mkdirSync(CACHE, { recursive: true });
   writeFileSync(file, Buffer.from(b64, 'base64'));
   return { hash, cached: false, model, full: true, direction: dir, proofread: check };
