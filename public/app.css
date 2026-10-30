@@ -4,9 +4,9 @@
 
 :root {
   --page-pad: var(--margin-wide);
-  --taste: light-dark(#E2561F, #FF8A4C);          /* data colour: taste (not the accent) */
-  --taste-text: light-dark(#B23F0C, #FF9A62);      /* 5.2:1 on white, 7.6:1 on #1C1C1E */
-  --taste-soft: light-dark(#F7C9A9, #6B3A22);
+  --taste: light-dark(#4338CA, #818CF8);          /* data colour: taste, one indigo scale (darker = stronger market) */
+  --taste-text: light-dark(#3730A3, #A5B4FC);      /* 10:1 on white, 8.9:1 on #1C1C1E */
+  --taste-soft: light-dark(#C7D2FE, #312E81);
   --pop: light-dark(#8E8E93, #8E8E93);             /* data colour: population */
   --route: light-dark(#1D1D1F, #F5F5F7);
   --map-h: 500px;
@@ -176,7 +176,7 @@ code { font-family: var(--font-mono); font-size: 0.9em; letter-spacing: 0; }
 .map-legend .ramp { height: 6px; border-radius: 3px; background: linear-gradient(90deg, var(--taste-soft), var(--taste)); }
 .map-legend .ramp.is-pop { background: linear-gradient(90deg, var(--fill), var(--pop)); }
 .map-legend .heat-key { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 12px; color: var(--secondary-label, inherit); }
-.map-legend .heat-key i { flex: none; width: 14px; height: 14px; border-radius: 50%; background: radial-gradient(circle, #5B5BD6 0%, rgba(129,140,248,.55) 45%, rgba(199,210,254,0) 72%); }
+.map-legend .heat-key i { flex: none; width: 14px; height: 14px; border-radius: 50%; background: radial-gradient(circle, light-dark(#A5B4FC, #4F46E5) 0%, light-dark(rgba(199,210,254,.6), rgba(49,46,129,.6)) 45%, transparent 72%); }
 .map-legend .ends { display: flex; justify-content: space-between; gap: 12px; color: var(--label-on-map); }
 .map-legend .ui-secondary { color: var(--label-on-map); }
 /* Computer: the wheel scrolls the page over a resting map; one click wakes it (see setMapActive in app.js). */

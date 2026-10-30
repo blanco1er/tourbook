@@ -690,8 +690,8 @@ function heatPaint(opacity) {
     'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 3, 0.75, 6, 1.4, 9, 2.2],
     'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 3, 15, 4, 21, 6, 40, 9, 80],
     'heatmap-color': dark
-      ? ['interpolate', ['linear'], ['heatmap-density'], 0, 'rgba(40,44,120,0)', 0.2, 'rgba(58,66,170,0.42)', 0.45, '#4A5BE0', 0.75, '#7C8CFF', 1, '#C9D1FF']
-      : ['interpolate', ['linear'], ['heatmap-density'], 0, 'rgba(199,210,254,0)', 0.2, 'rgba(165,180,252,0.42)', 0.45, '#818CF8', 0.75, '#5B5BD6', 1, '#3730A3'],
+      ? ['interpolate', ['linear'], ['heatmap-density'], 0, 'rgba(30,27,75,0)', 0.2, 'rgba(49,46,129,0.45)', 0.45, '#312E81', 0.75, '#3730A3', 1, '#4F46E5']
+      : ['interpolate', ['linear'], ['heatmap-density'], 0, 'rgba(224,231,255,0)', 0.2, 'rgba(199,210,254,0.45)', 0.45, '#C7D2FE', 0.75, '#A5B4FC', 1, '#818CF8'],
     'heatmap-opacity': opacity,
   };
 }
@@ -757,7 +757,8 @@ function mix(a, b, t) {
   const [x, y] = [p(a), p(b)];
   return `#${x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, '0')).join('')}`;
 }
-const tasteColor = (h) => { const t = Math.max(0, Math.min(1, (h - 35) / 60)); return isDark() ? mix('#6B3A22', '#FF8A4C', t) : mix('#F7C9A9', '#E2561F', t); };
+// One indigo scale: the stronger the market (Hidden Market Score), the deeper the colour (light mode) or the brighter (dark mode).
+const tasteColor = (h) => { const t = Math.max(0, Math.min(1, (h - 35) / 60)); return isDark() ? mix('#3730A3', '#A5B4FC', t) : mix('#C7D2FE', '#312E81', t); };
 const greyDot = () => (isDark() ? '#636366' : '#AEAEB2');
 
 function drawBaseMap() {
