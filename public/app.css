@@ -1059,3 +1059,8 @@ button.live-head { width: 100%; padding: 0; border: 0; background: none; text-al
 .steps li.is-active::before, .live .steps li.is-active::before { background: linear-gradient(90deg, var(--fill) 0%, var(--ok) 45%, var(--fill) 90%) !important; background-size: 220% 100% !important; animation: step-run 1.1s linear infinite; }
 .live-head .live-dot { background: var(--ok); }
 @media (prefers-reduced-motion: reduce) { .steps li.is-active::before { animation: none; background: var(--ok) !important; opacity: .5; } }
+/* Validate = green, a positive action (owner, 30 Oct). White text keeps 4.5:1 on this green. */
+:root { --ok-strong: light-dark(#0E8A3E, #128C42); }
+#validateBtn.ui-button--prominent { background: var(--ok-strong); color: #fff; box-shadow: 0 6px 18px light-dark(rgba(14,138,62,.28), rgba(0,0,0,.4)); }
+#validateBtn.ui-button--prominent:hover { filter: brightness(1.06); }
+#validateBtn:not(.ui-button--prominent) .ui-icon { color: var(--ok); }
