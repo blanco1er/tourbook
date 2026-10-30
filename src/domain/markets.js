@@ -13,7 +13,8 @@ export const STRATEGIES = {
     const params = { 'signal.interests.entities': ids, 'filter.location': US_WKT, take: 50 };
     if (config.qloo.heatmapBoundary) params['output.heatmap.boundary'] = config.qloo.heatmapBoundary;
     const { body, provenance } = await qloo.heatmap(params);
-    return { values: assignCells(body?.results?.heatmap || [], cities), evidence: [provenance], comparable: true };
+    const cells = body?.results?.heatmap || [];
+    return { values: assignCells(cells, cities), evidence: [provenance], comparable: true, heat: compactHeat(cells) };
   },
   // One call per city. Heatmap affinity is query-relative => NOT strictly comparable across calls.
   async heatmap_city(qloo, ids, cities) {
@@ -68,7 +69,7 @@ export async function rankMarkets(qloo, { entityIds, entityType = 'urn:entity:ar
       attempts.push({ strategy: name, coverage: round(coverage), ok: coverage >= 0.6 });
       if (coverage >= 0.6) {
         const markets = scoreMarkets(cities, run.values);
-        return { strategy: name, comparable: run.comparable, attempts, markets, top: markets.slice(0, topN), evidence: run.evidence.slice(0, 40) };
+        return { strategy: name, comparable: run.comparable, attempts, markets, top: markets.slice(0, topN), evidence: run.evidence.slice(0, 40), heat: run.heat || null };
       }
     } catch (e) {
       attempts.push({ strategy: name, ok: false, error: e.message, code: e.code });
@@ -123,6 +124,31 @@ export function assignCells(cells, cities) {
   const values = {};
   for (const id of Object.keys(sums)) values[id] = sums[id] / counts[id];
   return values;
+}
+
+/**
+ * The national heatmap as a fan map: [lng, lat, weight] per cell, weight = the cell's percentile among this plan's
+ * cells (0..1). Raw affinity_rank sits in very different bands from act to act (0.09–0.96 for one, 0.45–0.99 for
+ * another), so the percentile keeps the hotspots visible for every act. The bottom 40% is dropped (cold cells,
+ * half the payload). Same single call as the scores: no extra Qloo request.
+ */
+export function compactHeat(cells, keep = 0.6) {
+  const pts = [];
+  for (const cell of cells) {
+    const loc = cell?.location || {};
+    const pt = Number.isFinite(loc.latitude) ? { lat: loc.latitude, lng: loc.longitude } : loc.geohash ? decodeGeohash(loc.geohash) : null;
+    const a = num(cell?.query?.affinity_rank ?? cell?.query?.affinity);
+    if (pt && Number.isFinite(a)) pts.push({ ...pt, a });
+  }
+  if (!pts.length) return null;
+  pts.sort((x, y) => x.a - y.a);
+  const n = pts.length;
+  const out = [];
+  pts.forEach((p, i) => {
+    const w = n > 1 ? i / (n - 1) : 1;
+    if (w >= 1 - keep) out.push([Math.round(p.lng * 100) / 100, Math.round(p.lat * 100) / 100, Math.round(w * 1000) / 1000]);
+  });
+  return { cells: out, total: n };
 }
 
 /** Greedy nearest-neighbour routing through the chosen markets (start = highest HMS). */

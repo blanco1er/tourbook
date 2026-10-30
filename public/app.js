@@ -218,7 +218,7 @@ function run(input, { rid, keepView = false, demoIndex } = {}) {
   if (S.running) { toast({ title: t('Already planning'), detail: t('{artist} is still running. One plan at a time.', { artist: S.input?.artist }) }); return; }
   S.running = true;
   S.rid = rid || newRid(); S.retryRid = null;
-  S.es?.close(); S.book = null; S.dossiers = {}; S.calls = []; S.tools = 0; S.trace = []; S.input = input; S.liveTop = null; S.curTool = null; S.plan = 'qloo';
+  S.es?.close(); S.book = null; S.dossiers = {}; S.calls = []; S.tools = 0; S.trace = []; S.input = input; S.liveTop = null; S.heat = null; S.curTool = null; S.plan = 'qloo';
   fillForm(input);
   stopVoice(); if ($('#sheet-dossier').open) closeSheet('sheet-dossier');
   setBusy(true, demoIndex ?? S.cfg.demos.findIndex((d) => d.artist === input.artist));
@@ -263,6 +263,7 @@ function run(input, { rid, keepView = false, demoIndex } = {}) {
     if (d.status === 'error') { liveLine('err', `<b>${esc(d.name)}</b><span>${esc(d.error)}</span>`); agentLine({ kind: 'toolerr', d }); }
     updateToolbar();
   });
+  on('heat', (d) => { S.heat = d; drawHeat(true); });
   on('call', (d) => {
     if (d.status === 'start') return;
     S.calls.push(d);
@@ -661,6 +662,9 @@ function initMap() {
 function quietStyle() {
   // Quiet basemap: our metros carry the labels, not the tiles.
   for (const l of S.map.getStyle().layers) if (l.type === 'symbol') S.map.setLayoutProperty(l.id, 'visibility', 'none');
+  // Fan map: Qloo's national heatmap cells, under the route and the metros.
+  if (!S.map.getSource('heat')) S.map.addSource('heat', { type: 'geojson', data: heatData() });
+  if (!S.map.getLayer('heat')) S.map.addLayer({ id: 'heat', type: 'heatmap', source: 'heat', paint: heatPaint(0) });
   if (!S.map.getSource('route')) S.map.addSource('route', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
   const c = isDark() ? '#F5F5F7' : '#1D1D1F';
   if (!S.map.getLayer('route')) S.map.addLayer({ id: 'route', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': c, 'line-width': 2, 'line-dasharray': [1.4, 1.6], 'line-opacity': 0.75 } });
@@ -672,6 +676,46 @@ function mapPadding() {
   return w < 560 ? { top: 64, bottom: 96, left: 28, right: 28 } : { top: 70, bottom: 124, left: under + 70, right: 80 };
 }
 function clearMarkers() { S.markers.forEach((m) => m.remove()); S.markers = []; S.map?.getSource('route')?.setData({ type: 'FeatureCollection', features: [] }); }
+
+// ---- fan heat (30 Oct): where the fans over-index, cell by cell, from the same national heatmap call ----
+const heatSrc = () => S.book?.markets?.heat || S.heat || null;
+function heatData() {
+  const h = heatSrc();
+  return { type: 'FeatureCollection', features: (h?.cells || []).map(([lng, lat, w]) => ({ type: 'Feature', properties: { w }, geometry: { type: 'Point', coordinates: [lng, lat] } })) };
+}
+function heatPaint(opacity) {
+  const dark = isDark();
+  return {
+    'heatmap-weight': ['interpolate', ['linear'], ['get', 'w'], 0.4, 0, 0.8, 0.22, 0.95, 0.7, 1, 1],
+    'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 3, 0.75, 6, 1.4, 9, 2.2],
+    'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 3, 15, 4, 21, 6, 40, 9, 80],
+    'heatmap-color': dark
+      ? ['interpolate', ['linear'], ['heatmap-density'], 0, 'rgba(107,58,34,0)', 0.2, 'rgba(140,64,30,0.4)', 0.45, '#A9481A', 0.75, '#E8733A', 1, '#FFA066']
+      : ['interpolate', ['linear'], ['heatmap-density'], 0, 'rgba(247,201,169,0)', 0.2, 'rgba(247,190,150,0.45)', 0.45, '#F29A62', 0.75, '#E2561F', 1, '#B23A0E'],
+    'heatmap-opacity': opacity,
+  };
+}
+let heatAnim;
+/** Shows the fan heat. `bloom`: fades and swells in, the way the hotspots arrive from Qloo. Hidden in the no-Qloo view. */
+function drawHeat(bloom = false) {
+  if (!S.map?.getLayer('heat')) return;
+  cancelAnimationFrame(heatAnim);
+  S.map.getSource('heat').setData(heatData());
+  const target = heatSrc() && S.plan !== 'llm' ? (isDark() ? 0.7 : 0.72) : 0;
+  if (!bloom || reduceMotion() || !target) { S.map.setPaintProperty('heat', 'heatmap-opacity', target); return; }
+  const t0 = performance.now(), dur = 1600;
+  const step = (now) => {
+    const p = Math.min(1, (now - t0) / dur); const e = 1 - Math.pow(1 - p, 3);
+    S.map.setPaintProperty('heat', 'heatmap-opacity', target * e);
+    S.map.setPaintProperty('heat', 'heatmap-intensity', ['interpolate', ['linear'], ['zoom'], 3, 0.75 * (0.4 + 0.6 * e), 6, 1.4 * (0.4 + 0.6 * e), 9, 2.2]);
+    if (p < 1) heatAnim = requestAnimationFrame(step);
+  };
+  heatAnim = requestAnimationFrame(step);
+}
+const heatLegend = () => {
+  const h = heatSrc();
+  return h && S.plan !== 'llm' ? `<span class="heat-key"><i></i>${t('Fan heat: {n} areas from one Qloo heatmap call', { n: (h.total || h.cells.length).toLocaleString(LOCALE) })}</span>` : '';
+};
 // Hide a city label when it would collide with a higher-ranked label or dot (dense Midwest / Northeast).
 function declutter() {
   if (!S.map) return;
@@ -722,6 +766,7 @@ function drawBaseMap() {
   const all = S.cfg.cities; const maxPop = Math.max(...all.map((c) => c.pop));
   const k = $('#mapwrap').clientWidth < 560 ? 0.62 : 1;
   for (const c of all) addMarker(c, { size: Math.round((7 + 15 * Math.sqrt(c.pop / maxPop)) * k), bg: greyDot(), minor: true });
+  drawHeat(false);
   $('#legend').innerHTML = `<b>${t('34 US metros')}</b><span class="ui-secondary">${t('Sized by population, the way tours are usually routed.')}${S.running ? ` ${t('Scoring them by taste…')}` : ''}</span>`;
 }
 function drawLiveTop() {
@@ -736,7 +781,7 @@ function drawLiveTop() {
   S.routeCoords = [...top.keys()].map((id) => S.cities[id]).filter(Boolean).map((c) => [c.lng, c.lat]);
   fitTour(true, true);
   declutter();
-  $('#legend').innerHTML = `<b>${t('Scored by taste')}</b><span class="ui-secondary">${t('The top markets light up as the agent ranks them. Preparing the dates…')}</span>`;
+  $('#legend').innerHTML = `<b>${t('Scored by taste')}</b><span class="ui-secondary">${t('The top markets light up as the agent ranks them. Preparing the dates…')}</span>${heatLegend()}`;
 }
 let routeAnim;
 function drawMap() {
@@ -757,10 +802,11 @@ function drawMap() {
     addMarker(m, { size, bg: qloo ? tasteColor(m.hms) : (isDark() ? '#8E8E93' : '#636366'), rank, label: m.name, hidden: qloo && m.hidden, enter: true, delay: rank * 55 });
   }
   $('#legend').innerHTML = qloo
-    ? `<b>${t('With Qloo')}</b><div class="ramp"></div><div class="ends"><span>${t('Hidden Market Score')}</span><span>${t('higher')}</span></div><span class="ui-secondary">${t('Size is taste affinity. A ring marks a hidden market.')}</span>`
+    ? `<b>${t('With Qloo')}</b><div class="ramp"></div><div class="ends"><span>${t('Hidden Market Score')}</span><span>${t('higher')}</span></div><span class="ui-secondary">${t('Size is taste affinity. A ring marks a hidden market.')}</span>${heatLegend()}`
     : `<b>${t('Without Qloo')}</b><div class="ramp is-pop"></div><div class="ends"><span>${t('Population')}</span><span>${t('bigger')}</span></div><span class="ui-secondary">${t('What a model without taste data proposes.')}</span>`;
   const coords = routeIds.map((id) => S.cities[id]).filter(Boolean).map((c) => [c.lng, c.lat]);
   S.routeCoords = coords;
+  drawHeat(false);
   fitTour(true);
   declutter();
   animateRoute(coords);

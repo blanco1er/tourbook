@@ -322,6 +322,7 @@
     'The top markets light up as the agent ranks them. Preparing the dates…': 'Les meilleurs marchés s’allument à mesure que l’agent les classe. Préparation des dates…',
     'higher': 'plus élevé',
     'Size is taste affinity. A ring marks a hidden market.': 'La taille indique l’affinité de goût. Un anneau signale un marché caché.',
+    'Fan heat: {n} areas from one Qloo heatmap call': 'Chaleur des fans : {n} zones, issues d’un seul appel heatmap de Qloo',
     'Population': 'Population',
     'bigger': 'plus grande',
     'What a model without taste data proposes.': 'Ce que propose un modèle sans données de goût.',

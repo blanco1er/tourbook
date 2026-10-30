@@ -72,6 +72,8 @@ export async function runAgent({ input, qloo, llm, emit = () => {} }) {
           const errs = checkArgs(tool.def.function.parameters, tc.arguments);
           if (errs.length) throw new Error(`Invalid arguments: ${errs.join('; ')}`);
           ({ forModel } = await tool.run(tc.arguments, ctx));
+          // The fan map (national heatmap cells) goes to the screen only: the model never sees it.
+          if (tc.name === 'rank_markets' && state.markets?.heat) emit('heat', state.markets.heat);
           emit('tool', { id: tc.id, name: tc.name, stage: tool.stage, status: 'done', result: forModel });
         } catch (err) {
           forModel = { error: err.message, code: err.code };
@@ -118,7 +120,7 @@ function assemble(runId, state, summary, meta) {
     disclaimer: meta.qloo === 'mock' ? 'SYNTHETIC DATA: mock mode, no Qloo data.' : 'Source: Qloo Insights API (aggregate taste affinities). Not about individuals.',
     artist: state.resolved[0] || null,
     proxies: state.resolved.slice(1),
-    markets: state.markets && { strategy: state.markets.strategy, comparable: state.markets.comparable, attempts: state.markets.attempts, all: state.markets.markets, top },
+    markets: state.markets && { strategy: state.markets.strategy, comparable: state.markets.comparable, attempts: state.markets.attempts, all: state.markets.markets, top, heat: state.markets.heat || null },
     route: routeOrder(top),
     audience: state.audience,
     momentum: state.momentum,
