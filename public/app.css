@@ -1181,3 +1181,12 @@ button.live-head { width: 100%; padding: 0; border: 0; background: none; text-al
 #mapwrap.is-scan .mk.is-minor .dot { animation: none !important; }
 .mk.is-hit .dot { animation: hit .9s ease-out both !important; }
 @keyframes hit { 0% { transform: scale(1); } 18% { transform: scale(1.9); background: #00C853; box-shadow: 0 0 0 6px rgba(0,200,83,.25), 0 0 18px rgba(0,200,83,.8); } 100% { transform: scale(1); } }
+
+/* ---- Metro "ping" while scoring (replaces the scan line) ---- */
+.mk.is-minor::after { content: ""; position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%;
+  border: 1.5px solid #00C853; opacity: 0; transform: scale(.2); pointer-events: none; }
+.mk.is-minor.is-ping::after { animation: ping 1.3s cubic-bezier(.2,.7,.3,1) both; }
+.mk.is-minor.is-ping .dot { animation: pinged 1.6s ease-out both !important; }
+@keyframes ping { 0% { opacity: .9; transform: scale(.2); } 100% { opacity: 0; transform: scale(1); } }
+@keyframes pinged { 0% { background: #00C853; box-shadow: 0 0 0 0 rgba(0,200,83,.5), 0 0 14px rgba(0,200,83,.75); } 60% { background: #00C853; box-shadow: 0 0 0 5px rgba(0,200,83,0), 0 0 10px rgba(0,200,83,.35); } 100% { box-shadow: none; } }
+@media (prefers-reduced-motion: reduce) { .mk.is-minor.is-ping::after { animation: none; } }

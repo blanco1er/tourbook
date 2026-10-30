@@ -44,6 +44,7 @@
     'national heatmap call': 'appel heatmap national',
     'rejected parameters': 'paramètre rejeté',
     'New tour': 'Nouvelle tournée',
+    'Reading taste · {n}/{m} metros': 'Lecture du goût · {n}/{m} métropoles',
     'Searching Qloo…': 'Recherche dans Qloo…',
     'Close names on Qloo': 'Noms proches sur Qloo',
     'Not on Qloo yet': 'Pas encore sur Qloo',

@@ -1006,43 +1006,28 @@ function mapPadding() {
   const under = isWide() && !$('#app').classList.contains('is-sidebar-collapsed') ? 284 : 0;
   return w < 560 ? { top: 132, bottom: 110, left: 36, right: 36 } : { top: 96, bottom: 124, left: under + 70, right: 80 };
 }
-// A real scan while the 34 metros are scored (owner, 30 Oct): a green line of light drawn by the map itself
-// sweeps west to east along the longitudes, with a fading wake, and each metro lights up the moment it is crossed.
-const SCAN = { W: -126, E: -66, ms: 2600 };
-function scanLayers() {
-  const m = S.map; if (!m || !m.isStyleLoaded()) return false;
-  if (!m.getSource('scan')) m.addSource('scan', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-  const glow = '#00C853';
-  if (!m.getLayer('scan-wake')) m.addLayer({ id: 'scan-wake', type: 'fill', source: 'scan', filter: ['==', ['get', 'k'], 'wake'], paint: { 'fill-color': glow, 'fill-opacity': ['get', 'o'] } });
-  if (!m.getLayer('scan-glow')) m.addLayer({ id: 'scan-glow', type: 'line', source: 'scan', filter: ['==', ['get', 'k'], 'line'], paint: { 'line-color': glow, 'line-width': 26, 'line-blur': 22, 'line-opacity': 0.55 } });
-  if (!m.getLayer('scan-line')) m.addLayer({ id: 'scan-line', type: 'line', source: 'scan', filter: ['==', ['get', 'k'], 'line'], paint: { 'line-color': '#B9F6CA', 'line-width': 2, 'line-opacity': 0.95 } });
-  return true;
-}
+// While the 34 metros are scored (owner, 30 Oct): no sweeping line. Each metro is "read" in turn: it lights up
+// and sends out a soft green ping, in a west-to-east cascade with a little natural jitter, and the map title
+// counts the metros read so far. It loops until the ranking arrives.
 function startScan() {
-  if (S.scanRaf || !S.map || reduceMotion()) return;
-  const t0 = performance.now();
-  const step = (now) => {
-    S.scanRaf = requestAnimationFrame(step);
-    if (!scanLayers()) return;
-    const p = ((now - t0) % SCAN.ms) / SCAN.ms; const L = SCAN.W + (SCAN.E - SCAN.W) * p;
-    const feats = [{ type: 'Feature', properties: { k: 'line' }, geometry: { type: 'LineString', coordinates: [[L, -5], [L, 80]] } }];
-    for (let i = 0; i < 7; i++) { // the wake: thin bands that fade behind the line
-      const a = L - (i + 1) * 0.9, b = L - i * 0.9; if (b <= SCAN.W) break;
-      feats.push({ type: 'Feature', properties: { k: 'wake', o: 0.16 * (1 - i / 7) }, geometry: { type: 'Polygon', coordinates: [[[Math.max(a, SCAN.W), -5], [b, -5], [b, 80], [Math.max(a, SCAN.W), 80], [Math.max(a, SCAN.W), -5]]] } });
-    }
-    S.map.getSource('scan').setData({ type: 'FeatureCollection', features: feats });
-    for (const mk of S.markers) { // the metro under the line lights up
-      const ll = mk.getLngLat(); const el = mk.getElement();
-      if (ll.lng <= L && ll.lng > L - 1.6) { if (!el.classList.contains('is-hit')) { el.classList.remove('is-hit'); void el.offsetWidth; el.classList.add('is-hit'); } }
-      else if (ll.lng > L || ll.lng < L - 6) el.classList.remove('is-hit');
-    }
+  if (S.scanTimer || !S.map) return;
+  const order = () => S.markers.map((m) => ({ m, k: m.getLngLat().lng + (Math.random() - 0.5) * 6 })).sort((a, b) => a.k - b.k).map((x) => x.m);
+  let queue = order(), i = 0, read = 0;
+  const total = S.markers.length;
+  const tick = () => {
+    if (!S.markers.length) return;
+    if (i >= queue.length) { queue = order(); i = 0; read = 0; }
+    const el = queue[i++].getElement();
+    el.classList.remove('is-ping'); void el.offsetWidth; el.classList.add('is-ping');
+    read++;
+    setMapTitle(`<span class="live-dot"></span>${t('Reading taste · {n}/{m} metros', { n: read, m: total })}`);
+    S.scanTimer = setTimeout(tick, reduceMotion() ? 260 : 60 + Math.random() * 70);
   };
-  S.scanRaf = requestAnimationFrame(step);
+  tick();
 }
 function stopScan() {
-  cancelAnimationFrame(S.scanRaf); S.scanRaf = 0;
-  S.map?.getSource('scan')?.setData({ type: 'FeatureCollection', features: [] });
-  S.markers?.forEach((m) => m.getElement().classList.remove('is-hit'));
+  clearTimeout(S.scanTimer); S.scanTimer = 0;
+  S.markers?.forEach((m) => m.getElement().classList.remove('is-ping'));
 }
 function clearMarkers() { S.markers.forEach((m) => m.remove()); S.markers = []; S.map?.getSource('route')?.setData({ type: 'FeatureCollection', features: [] }); stopBus(); }
 let busAnim;
