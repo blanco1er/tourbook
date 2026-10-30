@@ -1,0 +1,633 @@
+{
+  "base": "https://tourbook-q2d9.onrender.com",
+  "date": "2026-10-30",
+  "plans": [
+    {
+      "act": "Men I Trust",
+      "kind": "artist",
+      "ms": 68348,
+      "qlooCalls": 31,
+      "endpoints": 4,
+      "filterTypes": 8,
+      "rejected": 0,
+      "planner": "openai:gemini-3.8-flash",
+      "stops": 10,
+      "hidden": 8,
+      "changedByQloo": 3,
+      "heatCells": 4035,
+      "dossierSections": 15,
+      "citedSections": 15,
+      "picks": 108
+    },
+    {
+      "act": "Mark Normand",
+      "kind": "person",
+      "ms": 65014,
+      "qlooCalls": 30,
+      "endpoints": 4,
+      "filterTypes": 8,
+      "rejected": 0,
+      "planner": "openai:gemini-3.8-flash",
+      "stops": 10,
+      "hidden": 9,
+      "changedByQloo": 7,
+      "heatCells": 10873,
+      "dossierSections": 15,
+      "citedSections": 15,
+      "picks": 104
+    },
+    {
+      "act": "Last Podcast on the Left",
+      "kind": "podcast",
+      "ms": 51957,
+      "qlooCalls": 29,
+      "endpoints": 4,
+      "filterTypes": 7,
+      "rejected": 0,
+      "planner": "openai:gemini-3.8-flash",
+      "stops": 5,
+      "hidden": 5,
+      "changedByQloo": 5,
+      "heatCells": 7789,
+      "dossierSections": 15,
+      "citedSections": 15,
+      "picks": 93
+    },
+    {
+      "act": "Tycho",
+      "kind": "artist",
+      "ms": 61423,
+      "qlooCalls": 31,
+      "endpoints": 4,
+      "filterTypes": 8,
+      "rejected": 0,
+      "planner": "openai:gemini-3.8-flash",
+      "stops": 5,
+      "hidden": 4,
+      "changedByQloo": 2,
+      "heatCells": 7788,
+      "dossierSections": 15,
+      "citedSections": 15,
+      "picks": 108
+    },
+    {
+      "act": "Watchhouse",
+      "kind": "artist",
+      "ms": 50786,
+      "qlooCalls": 31,
+      "endpoints": 4,
+      "filterTypes": 8,
+      "rejected": 0,
+      "planner": "openai:gemini-3.8-flash",
+      "stops": 5,
+      "hidden": 5,
+      "changedByQloo": 1,
+      "heatCells": 5875,
+      "dossierSections": 15,
+      "citedSections": 15,
+      "picks": 108
+    }
+  ],
+  "asks": [
+    {
+      "act": "Men I Trust",
+      "question": "Swap the weakest stop for somewhere in the South",
+      "status": 200,
+      "ms": 13186,
+      "by": "model",
+      "valid": true,
+      "holds": false,
+      "change": {
+        "remove": [
+          "new-york"
+        ],
+        "add": [
+          "washington"
+        ]
+      },
+      "qlooCalls": 1,
+      "checks": [
+        {
+          "name": "tour size 3–10",
+          "ok": true
+        },
+        {
+          "name": "added cities are real metros with a score, not already in the tour",
+          "ok": true
+        },
+        {
+          "name": "removed cities were in the tour",
+          "ok": true
+        },
+        {
+          "name": "added city is in the region asked",
+          "ok": true
+        },
+        {
+          "name": "rooms checked with Qloo before adding",
+          "ok": true
+        }
+      ],
+      "passed": true,
+      "errors": null
+    },
+    {
+      "act": "Men I Trust",
+      "question": "Swap the weakest stop",
+      "status": 200,
+      "ms": 11767,
+      "by": "model",
+      "valid": true,
+      "holds": true,
+      "change": {
+        "remove": [],
+        "add": []
+      },
+      "qlooCalls": 0,
+      "checks": [
+        {
+          "name": "tour size 3–10",
+          "ok": true
+        },
+        {
+          "name": "added cities are real metros with a score, not already in the tour",
+          "ok": true
+        },
+        {
+          "name": "removed cities were in the tour",
+          "ok": true
+        }
+      ],
+      "passed": true,
+      "errors": null
+    },
+    {
+      "act": "Men I Trust",
+      "question": "Drop New York",
+      "status": 200,
+      "ms": 20513,
+      "by": "model",
+      "valid": true,
+      "holds": false,
+      "change": {
+        "remove": [
+          "new-york"
+        ],
+        "add": []
+      },
+      "qlooCalls": 0,
+      "checks": [
+        {
+          "name": "tour size 3–10",
+          "ok": true
+        },
+        {
+          "name": "added cities are real metros with a score, not already in the tour",
+          "ok": true
+        },
+        {
+          "name": "removed cities were in the tour",
+          "ok": true
+        },
+        {
+          "name": "drops exactly the stop named",
+          "ok": true
+        }
+      ],
+      "passed": true,
+      "errors": null
+    },
+    {
+      "act": "Mark Normand",
+      "question": "Swap the weakest stop for somewhere in the South",
+      "status": 200,
+      "ms": 16677,
+      "by": "model",
+      "valid": true,
+      "holds": false,
+      "change": {
+        "remove": [
+          "los-angeles"
+        ],
+        "add": [
+          "louisville"
+        ]
+      },
+      "qlooCalls": 1,
+      "checks": [
+        {
+          "name": "tour size 3–10",
+          "ok": true
+        },
+        {
+          "name": "added cities are real metros with a score, not already in the tour",
+          "ok": true
+        },
+        {
+          "name": "removed cities were in the tour",
+          "ok": true
+        },
+        {
+          "name": "added city is in the region asked",
+          "ok": true
+        },
+        {
+          "name": "rooms checked with Qloo before adding",
+          "ok": true
+        }
+      ],
+      "passed": true,
+      "errors": null
+    },
+    {
+      "act": "Mark Normand",
+      "question": "Swap the weakest stop",
+      "status": 200,
+      "ms": 8517,
+      "by": "model",
+      "valid": true,
+      "holds": true,
+      "change": {
+        "remove": [],
+        "add": []
+      },
+      "qlooCalls": 0,
+      "checks": [
+        {
+          "name": "tour size 3–10",
+          "ok": true
+        },
+        {
+          "name": "added cities are real metros with a score, not already in the tour",
+          "ok": true
+        },
+        {
+          "name": "removed cities were in the tour",
+          "ok": true
+        }
+      ],
+      "passed": true,
+      "errors": null
+    },
+    {
+      "act": "Mark Normand",
+      "question": "Drop Los Angeles",
+      "status": 200,
+      "ms": 27793,
+      "by": "model",
+      "valid": true,
+      "holds": false,
+      "change": {
+        "remove": [
+          "los-angeles"
+        ],
+        "add": []
+      },
+      "qlooCalls": 0,
+      "checks": [
+        {
+          "name": "tour size 3–10",
+          "ok": true
+        },
+        {
+          "name": "added cities are real metros with a score, not already in the tour",
+          "ok": true
+        },
+        {
+          "name": "removed cities were in the tour",
+          "ok": true
+        },
+        {
+          "name": "drops exactly the stop named",
+          "ok": true
+        }
+      ],
+      "passed": true,
+      "errors": null
+    },
+    {
+      "act": "Last Podcast on the Left",
+      "question": "Swap the weakest stop for somewhere in the South",
+      "status": 200,
+      "ms": 8526,
+      "by": "model",
+      "valid": true,
+      "holds": false,
+      "change": {
+        "remove": [
+          "albuquerque"
+        ],
+        "add": [
+          "new-orleans"
+        ]
+      },
+      "qlooCalls": 1,
+      "checks": [
+        {
+          "name": "tour size 3–10",
+          "ok": true
+        },
+        {
+          "name": "added cities are real metros with a score, not already in the tour",
+          "ok": true
+        },
+        {
+          "name": "removed cities were in the tour",
+          "ok": true
+        },
+        {
+          "name": "added city is in the region asked",
+          "ok": true
+        },
+        {
+          "name": "rooms checked with Qloo before adding",
+          "ok": true
+        }
+      ],
+      "passed": true,
+      "errors": null
+    },
+    {
+      "act": "Last Podcast on the Left",
+      "question": "Swap the weakest stop",
+      "status": 200,
+      "ms": 38937,
+      "by": "model",
+      "valid": true,
+      "holds": true,
+      "change": {
+        "remove": [],
+        "add": []
+      },
+      "qlooCalls": 0,
+      "checks": [
+        {
+          "name": "tour size 3–10",
+          "ok": true
+        },
+        {
+          "name": "added cities are real metros with a score, not already in the tour",
+          "ok": true
+        },
+        {
+          "name": "removed cities were in the tour",
+          "ok": true
+        }
+      ],
+      "passed": true,
+      "errors": null
+    },
+    {
+      "act": "Last Podcast on the Left",
+      "question": "Drop Albuquerque",
+      "status": 200,
+      "ms": 28003,
+      "by": "model",
+      "valid": true,
+      "holds": false,
+      "change": {
+        "remove": [
+          "albuquerque"
+        ],
+        "add": []
+      },
+      "qlooCalls": 1,
+      "checks": [
+        {
+          "name": "tour size 3–10",
+          "ok": true
+        },
+        {
+          "name": "added cities are real metros with a score, not already in the tour",
+          "ok": true
+        },
+        {
+          "name": "removed cities were in the tour",
+          "ok": true
+        },
+        {
+          "name": "drops exactly the stop named",
+          "ok": true
+        }
+      ],
+      "passed": true,
+      "errors": null
+    },
+    {
+      "act": "Tycho",
+      "question": "Swap the weakest stop for somewhere in the South",
+      "status": 200,
+      "ms": 8717,
+      "by": "model",
+      "valid": true,
+      "holds": false,
+      "change": {
+        "remove": [
+          "portland"
+        ],
+        "add": [
+          "austin"
+        ]
+      },
+      "qlooCalls": 1,
+      "checks": [
+        {
+          "name": "tour size 3–10",
+          "ok": true
+        },
+        {
+          "name": "added cities are real metros with a score, not already in the tour",
+          "ok": true
+        },
+        {
+          "name": "removed cities were in the tour",
+          "ok": true
+        },
+        {
+          "name": "added city is in the region asked",
+          "ok": true
+        },
+        {
+          "name": "rooms checked with Qloo before adding",
+          "ok": true
+        }
+      ],
+      "passed": true,
+      "errors": null
+    },
+    {
+      "act": "Tycho",
+      "question": "Swap the weakest stop",
+      "status": 200,
+      "ms": 17839,
+      "by": "model",
+      "valid": true,
+      "holds": true,
+      "change": {
+        "remove": [],
+        "add": []
+      },
+      "qlooCalls": 0,
+      "checks": [
+        {
+          "name": "tour size 3–10",
+          "ok": true
+        },
+        {
+          "name": "added cities are real metros with a score, not already in the tour",
+          "ok": true
+        },
+        {
+          "name": "removed cities were in the tour",
+          "ok": true
+        }
+      ],
+      "passed": true,
+      "errors": null
+    },
+    {
+      "act": "Tycho",
+      "question": "Drop Portland",
+      "status": 200,
+      "ms": 18456,
+      "by": "model",
+      "valid": true,
+      "holds": false,
+      "change": {
+        "remove": [
+          "portland"
+        ],
+        "add": []
+      },
+      "qlooCalls": 0,
+      "checks": [
+        {
+          "name": "tour size 3–10",
+          "ok": true
+        },
+        {
+          "name": "added cities are real metros with a score, not already in the tour",
+          "ok": true
+        },
+        {
+          "name": "removed cities were in the tour",
+          "ok": true
+        },
+        {
+          "name": "drops exactly the stop named",
+          "ok": true
+        }
+      ],
+      "passed": true,
+      "errors": null
+    },
+    {
+      "act": "Watchhouse",
+      "question": "Swap the weakest stop for somewhere in the South",
+      "status": 200,
+      "ms": 15062,
+      "by": "model",
+      "valid": true,
+      "holds": false,
+      "change": {
+        "remove": [
+          "denver"
+        ],
+        "add": [
+          "washington"
+        ]
+      },
+      "qlooCalls": 1,
+      "checks": [
+        {
+          "name": "tour size 3–10",
+          "ok": true
+        },
+        {
+          "name": "added cities are real metros with a score, not already in the tour",
+          "ok": true
+        },
+        {
+          "name": "removed cities were in the tour",
+          "ok": true
+        },
+        {
+          "name": "added city is in the region asked",
+          "ok": true
+        },
+        {
+          "name": "rooms checked with Qloo before adding",
+          "ok": true
+        }
+      ],
+      "passed": true,
+      "errors": null
+    },
+    {
+      "act": "Watchhouse",
+      "question": "Swap the weakest stop",
+      "status": 200,
+      "ms": 14375,
+      "by": "model",
+      "valid": true,
+      "holds": true,
+      "change": {
+        "remove": [],
+        "add": []
+      },
+      "qlooCalls": 0,
+      "checks": [
+        {
+          "name": "tour size 3–10",
+          "ok": true
+        },
+        {
+          "name": "added cities are real metros with a score, not already in the tour",
+          "ok": true
+        },
+        {
+          "name": "removed cities were in the tour",
+          "ok": true
+        }
+      ],
+      "passed": true,
+      "errors": null
+    },
+    {
+      "act": "Watchhouse",
+      "question": "Drop Nashville",
+      "status": 200,
+      "ms": 41535,
+      "by": "model",
+      "valid": true,
+      "holds": false,
+      "change": {
+        "remove": [
+          "nashville"
+        ],
+        "add": []
+      },
+      "qlooCalls": 0,
+      "checks": [
+        {
+          "name": "tour size 3–10",
+          "ok": true
+        },
+        {
+          "name": "added cities are real metros with a score, not already in the tour",
+          "ok": true
+        },
+        {
+          "name": "removed cities were in the tour",
+          "ok": true
+        },
+        {
+          "name": "drops exactly the stop named",
+          "ok": true
+        }
+      ],
+      "passed": true,
+      "errors": null
+    }
+  ]
+}

@@ -169,9 +169,9 @@
         <div class="when-ready">
           <nav class="result-tabs" id="resultTabs" role="tablist" aria-label="Plan sections">
             <button type="button" role="tab" id="tab-dates" aria-controls="panel-dates" aria-selected="true" data-tab="dates"><span>Dates</span></button>
-            <button type="button" role="tab" id="tab-ask" aria-controls="panel-ask" aria-selected="false" data-tab="ask"><span>Ask Tourbook</span></button>
-            <button type="button" role="tab" id="tab-compare" aria-controls="panel-compare" aria-selected="false" data-tab="compare"><span>With / without Qloo</span></button>
-            <button type="button" role="tab" id="tab-markets" aria-controls="panel-markets" aria-selected="false" data-tab="markets"><span>All 34 markets</span></button>
+            <button type="button" role="tab" id="tab-ask" aria-controls="panel-ask" aria-selected="false" data-tab="ask"><span>Ask</span></button>
+            <button type="button" role="tab" id="tab-compare" aria-controls="panel-compare" aria-selected="false" data-tab="compare"><span>Compare</span></button>
+            <button type="button" role="tab" id="tab-markets" aria-controls="panel-markets" aria-selected="false" data-tab="markets"><span>Markets</span></button>
             <button type="button" role="tab" id="tab-audience" aria-controls="panel-audience" aria-selected="false" data-tab="audience"><span>Audience</span></button>
           </nav>
 
@@ -185,15 +185,15 @@
 
           <div class="result-panel block" role="tabpanel" id="panel-ask" aria-labelledby="tab-ask" data-panel="ask" hidden>
             <section class="ask" aria-labelledby="askTitle">
-              <header class="block-head">
-                <h2 class="ui-title2" id="askTitle">Ask Tourbook</h2>
-                <p class="ui-callout ui-secondary">Change the tour in plain words. The agent checks Qloo, proposes one change with its numbers, and you decide.</p>
+              <header class="ask-head">
+                <h2 class="ui-title3" id="askTitle">Ask Tourbook</h2>
+                <p class="ui-footnote ui-secondary">One change at a time, checked with Qloo. You decide.</p>
               </header>
               <form class="ask-form" id="askForm" autocomplete="off">
-                <input class="ask-input" id="askInput" type="text" maxlength="300" enterkeyhint="send" aria-label="Ask Tourbook to change the tour" placeholder="Swap the weakest stop for somewhere in the South">
-                <button class="ui-button ui-button--prominent" type="submit" id="askBtn"><span>Ask</span></button>
+                <input class="ask-input" id="askInput" type="text" maxlength="300" enterkeyhint="send" aria-label="Ask Tourbook to change the tour" placeholder="Ask for a change to this tour">
+                <button class="ask-send" type="submit" id="askBtn" aria-label="Ask"><svg class="ui-icon" viewBox="0 0 24 24"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/></svg></button>
               </form>
-              <div class="ask-chips" id="askChips"></div>
+              <div class="ask-grid" id="askChips"></div>
               <div class="ask-result" id="askResult" aria-live="polite"></div>
             </section>
           </div>

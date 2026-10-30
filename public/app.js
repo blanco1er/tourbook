@@ -517,6 +517,10 @@ function render() {
       miss: b.comparison ? t(', and a plan without Qloo would miss {n} of these {top} stops', { n: onlyQloo, top: top.length }) : '',
     })
     : t('No market stood out for this act.');
+  { // the headline stays; the detail sentence is wrapped so a phone can drop it (the four figures say the same)
+    const sm = $('#summary'); const strong = sm.querySelector('strong');
+    if (strong) { const rest = document.createElement('span'); rest.className = 'sum-rest'; while (strong.nextSibling) rest.appendChild(strong.nextSibling); sm.appendChild(rest); }
+  }
   const st = $('#stats');
   st.hidden = false;
   st.innerHTML = [
@@ -615,27 +619,24 @@ function renderAsk() {
   const tour = new Set(b.markets.top.map((m) => m.id));
   const weakest = [...b.markets.top].sort((x, y) => x.hms - y.hms)[0];
   const bestOut = b.markets.all.find((m) => !tour.has(m.id));
-  const chips = [
-    t('Swap the weakest stop'),
-    t('Swap the weakest stop for somewhere in the South'),
-    bestOut && t('Add a stop near {city}', { city: bestOut.name }),
-    weakest && t('Drop {city}', { city: weakest.name }),
+  // Short label on the card, full sentence sent to the agent.
+  const sug = [
+    { icon: 'swap', label: t('Replace the weakest stop'), q: t('Swap the weakest stop') },
+    { icon: 'pin', label: t('A city in the South'), q: t('Swap the weakest stop for somewhere in the South') },
+    bestOut && { icon: 'plus', label: t('Add {city}', { city: bestOut.name }), q: t('Add a stop near {city}', { city: bestOut.name }) },
+    weakest && { icon: 'minus', label: t('Remove {city}', { city: weakest.name }), q: t('Drop {city}', { city: weakest.name }) },
   ].filter(Boolean);
-  $('#askChips').innerHTML = chips.map((c) => `<button type="button" class="ask-chip" data-q="${esc(c)}">${esc(c)}</button>`).join('');
+  const ICON = { swap: '<path d="M7 7h11l-3-3M17 17H6l3 3"/>', pin: '<path d="M12 21s-6-5.6-6-11a6 6 0 1 1 12 0c0 5.4-6 11-6 11z"/><circle cx="12" cy="10" r="2.2"/>', plus: '<path d="M12 5v14M5 12h14"/>', minus: '<path d="M5 12h14"/>' };
+  $('#askChips').innerHTML = sug.map((x) => `<button type="button" class="ask-sug" data-q="${esc(x.q)}"><i class="ask-sug__ic"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">${ICON[x.icon]}</svg></i><span>${esc(x.label)}</span></button>`).join('');
   if (!S.askKeep) $('#askResult').innerHTML = '';
 }
-function askStepLine(st) {
-  if (st.name === 'find_markets') {
-    const n = st.result?.candidates?.length ?? 0; const a = st.args || {};
-    const where = a.region ? t(' in the {region}', { region: t(a.region[0].toUpperCase() + a.region.slice(1)) }) : a.near_city ? t(' near {city}', { city: S.cities[a.near_city]?.name || a.near_city }) : '';
-    return `<li><span class="ask-step-k">${t('Scores')}</span>${t('Read the plan’s national taste scores: {n} candidates{where}', { n, where })}</li>`;
+function askChecks(steps) {
+  const out = [];
+  for (const st of steps || []) {
+    if (st.name === 'find_markets') { const a = st.args || {}; out.push(t('{n} candidates scored{where}', { n: st.result?.candidates?.length ?? 0, where: a.region ? t(' in the {region}', { region: t(a.region[0].toUpperCase() + a.region.slice(1)) }) : a.near_city ? t(' near {city}', { city: S.cities[a.near_city]?.name || a.near_city }) : '' })); }
+    if (st.name === 'check_rooms') { const r = st.result || {}; out.push(r.found ? t('{n} rooms in {city} via Qloo, led by {room}', { n: r.found, city: esc(r.city), room: esc(r.rooms?.[0]?.name || '') }) : t('No room found in {city}', { city: esc(r.city || '') })); }
   }
-  if (st.name === 'check_rooms') {
-    const r = st.result || {}; const first = r.rooms?.[0]?.name;
-    return `<li><span class="ask-step-k is-qloo">Qloo</span>${r.found ? t('{n} rooms its audience favours in {city}, led by {room}', { n: r.found, city: esc(r.city), room: esc(first) }) : t('No matching room found in {city}', { city: esc(r.city || '') })}</li>`;
-  }
-  if (st.name === 'note') return `<li><span class="ask-step-k">${t('Note')}</span>${esc(st.result?.text || '')}</li>`;
-  return '';
+  return [...new Set(out)];
 }
 function deltaCell(label, a, b, { better = 'up', unit = '' } = {}) {
   const d = Math.round((b - a) * 10) / 10; const good = better === 'up' ? d > 0 : d < 0;
@@ -643,36 +644,42 @@ function deltaCell(label, a, b, { better = 'up', unit = '' } = {}) {
   const fmt = (x) => `${Number(x).toLocaleString(LOCALE)}${unit}`;
   return `<div class="ask-delta-cell"><span>${label}</span><b>${fmt(a)} → ${fmt(b)}</b>${d ? `<em class="${cls}">${d > 0 ? '+' : '−'}${Math.abs(d).toLocaleString(LOCALE)}${unit}</em>` : `<em>${t('same')}</em>`}</div>`;
 }
+let askTicker;
 async function ask(question) {
   question = String(question || '').trim(); if (!question || S.asking || !S.book) return;
-  S.asking = true; S.askKeep = false; $('#askInput').value = question;
+  S.asking = true; S.askKeep = false; $('#askInput').value = question; $('#askInput').blur(); // closes the phone keyboard
   const btn = $('#askBtn'); btn.disabled = true;
-  $('#askResult').innerHTML = `<div class="ask-card is-busy"><p class="ask-q">“${esc(question)}”</p><ul class="ask-steps"><li><span class="live-dot"></span>${t('The agent is reading the scores and checking Qloo…')}</li></ul></div>`;
+  const phases = [t('Reading the plan’s taste scores'), t('Checking rooms with Qloo'), t('Validating the change')];
+  let k = 0;
+  const busy = () => `<div class="ask-card is-busy"><div class="ask-card__top"><span class="ask-badge is-busy"><span class="live-dot"></span>${t('Working')}</span><span class="ask-card__q">${esc(question)}</span></div><p class="ask-phase">${phases[k]}…</p><div class="ask-bar"><i style="width:${(k + 1) * 30}%"></i></div></div>`;
+  $('#askResult').innerHTML = busy();
+  $('#askResult').scrollIntoView({ block: 'nearest', behavior: reduceMotion() ? 'auto' : 'smooth' });
+  clearInterval(askTicker); askTicker = setInterval(() => { k = Math.min(phases.length - 1, k + 1); const c = $('#askResult .is-busy'); if (c) c.outerHTML = busy(); }, 4500);
   try {
     const r = await fetch('/api/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question, lang: LANG, plan: askPlan() }) });
     const d = await r.json();
     if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
     (d.calls || []).forEach((c) => S.calls.push(c));
     const p = d.proposal;
-    const steps = (d.steps || []).map(askStepLine).join('');
-    if (!p) { $('#askResult').innerHTML = `<div class="ask-card"><p class="ask-q">“${esc(question)}”</p><ul class="ask-steps">${steps}</ul><p class="ask-reason">${t('The agent could not make a valid change: {e}', { e: esc((d.errors || []).join(' ')) })}</p></div>`; return; }
-    const name = (id) => esc(S.cities[id]?.name || id); const hms = (id) => S.book.markets.all.find((m) => m.id === id)?.hms;
-    const change = p.holds ? `<span class="ask-pill is-hold">${t('The tour holds')}</span>`
-      : [...p.remove.map((id) => `<span class="ask-pill is-out">− ${name(id)} <b>${hms(id)}</b></span>`), ...p.add.map((id) => `<span class="ask-pill is-in">+ ${name(id)} <b>${hms(id)}</b></span>`)].join('');
+    const checks = askChecks(d.steps);
+    const nCalls = (d.calls || []).length;
+    const proof = `<p class="ask-proof">${icon('i-check')}<span>${[...checks, nCalls ? (nCalls === 1 ? t('1 live Qloo request') : t('{n} live Qloo requests', { n: nCalls })) : t('no new Qloo request needed'), d.by === 'model' ? t('checked by the server') : t('scripted planner, checked by the server')].join(' · ')}</span></p>`;
+    if (!p) { $('#askResult').innerHTML = `<div class="ask-card"><div class="ask-card__top"><span class="ask-badge is-warn">${t('No change')}</span><span class="ask-card__q">${esc(question)}</span></div><p class="ask-reason">${t('The agent could not make a valid change: {e}', { e: esc((d.errors || []).join(' ')) })}</p></div>`; return; }
+    const city = (id) => esc(S.cities[id]?.name || id); const hms = (id) => S.book.markets.all.find((m) => m.id === id)?.hms;
+    const diff = p.holds ? '' : `<div class="ask-diff">${p.remove.map((id) => `<div class="ask-diff__row is-out"><span class="ask-diff__sign">−</span><span class="ask-diff__city">${city(id)}</span><span class="ask-diff__hms">${hms(id)}</span></div>`).join('')}${p.add.map((id) => `<div class="ask-diff__row is-in"><span class="ask-diff__sign">+</span><span class="ask-diff__city">${city(id)}</span><span class="ask-diff__hms">${hms(id)}</span></div>`).join('')}</div>`;
     S.askProposal = p;
     $('#askResult').innerHTML = `<div class="ask-card">
-      <p class="ask-q">“${esc(question)}”</p>
-      <ul class="ask-steps">${steps}</ul>
-      <div class="ask-change">${change}</div>
+      <div class="ask-card__top"><span class="ask-badge ${p.holds ? 'is-hold' : ''}">${p.holds ? t('The tour holds') : t('Proposal')}</span><span class="ask-card__q">${esc(question)}</span></div>
+      ${diff}
       <p class="ask-reason">${esc(p.reason)}</p>
-      ${p.holds ? '' : `<div class="ask-delta">${deltaCell(t('Mean Hidden Market Score'), p.before.meanHms, p.after.meanHms)}${deltaCell(t('Hidden markets'), p.before.hidden, p.after.hidden)}${deltaCell(t('Route'), p.before.km, p.after.km, { better: 'down', unit: ' km' })}</div>
-      <div class="ask-actions"><button class="ui-button ui-button--prominent" type="button" id="askApply">${t('Apply to my tour')}</button><button class="ui-button" type="button" id="askDismiss">${t('Keep my tour')}</button></div>`}
-      <p class="ask-foot ui-footnote ui-secondary">${d.by === 'model' ? t('Proposed by the model, checked by the server.') : t('Proposed by the scripted planner, checked by the server.')} ${t('{n} live Qloo requests.', { n: (d.calls || []).length })}</p>
+      ${p.holds ? '' : `<div class="ask-delta">${deltaCell(t('Mean score'), p.before.meanHms, p.after.meanHms)}${deltaCell(t('Hidden markets'), p.before.hidden, p.after.hidden)}${deltaCell(t('Route'), p.before.km, p.after.km, { better: 'down', unit: ' km' })}</div>
+      <div class="ask-actions"><button class="ui-button ui-button--prominent" type="button" id="askApply">${t('Apply')}</button><button class="ui-button" type="button" id="askDismiss">${t('Keep my tour')}</button></div>`}
+      ${proof}
     </div>`;
     spring($('#askResult .ask-card'), [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { preset: 'smooth', fill: 'none' });
   } catch (e) {
-    $('#askResult').innerHTML = `<div class="ask-card"><p class="ask-reason">${t('The agent could not answer: {e}', { e: esc(e.message) })}</p></div>`;
-  } finally { S.asking = false; btn.disabled = false; }
+    $('#askResult').innerHTML = `<div class="ask-card"><div class="ask-card__top"><span class="ask-badge is-warn">${t('No change')}</span></div><p class="ask-reason">${t('The agent could not answer: {e}', { e: esc(e.message) })}</p></div>`;
+  } finally { clearInterval(askTicker); S.asking = false; btn.disabled = false; }
 }
 function applyProposal() {
   const p = S.askProposal; const b = S.book; if (!p || !b) return;
@@ -690,11 +697,15 @@ function undoProposal() {
   const u = S.askUndo; if (!u || !S.book) return;
   Object.assign(S.book.markets, { top: u.top }); S.book.route = u.route; S.book.comparison = u.comparison; S.askUndo = null;
   S.askKeep = true; drawMap(); renderCompare(); renderAsk();
-  $('#askResult .ask-actions').innerHTML = `<button class="ui-button ui-button--prominent" type="button" id="askApply">${t('Apply to my tour')}</button><button class="ui-button" type="button" id="askDismiss">${t('Keep my tour')}</button>`;
+  $('#askResult .ask-actions').innerHTML = `<button class="ui-button ui-button--prominent" type="button" id="askApply">${t('Apply')}</button><button class="ui-button" type="button" id="askDismiss">${t('Keep my tour')}</button>`;
 }
 function bindAsk() {
   $('#askForm')?.addEventListener('submit', (e) => { e.preventDefault(); ask($('#askInput').value); });
   $('#askChips')?.addEventListener('click', (e) => { const c = e.target.closest('[data-q]'); if (c) ask(c.dataset.q); });
+  // Phones: while the keyboard is up, the floating tab bar and the + button step aside (they would ride above the keyboard).
+  const kb = (on) => document.documentElement.classList.toggle('is-typing', on && matchMedia('(pointer: coarse)').matches);
+  document.addEventListener('focusin', (e) => { if (e.target.matches('input[type="text"], input[type="search"], textarea')) kb(true); });
+  document.addEventListener('focusout', () => setTimeout(() => kb(!!document.activeElement?.matches?.('input[type="text"], input[type="search"], textarea')), 60));
   $('#askResult')?.addEventListener('click', (e) => {
     if (e.target.closest('#askApply')) applyProposal();
     else if (e.target.closest('#askUndo')) undoProposal();
