@@ -1230,3 +1230,15 @@ button.live-head { width: 100%; padding: 0; border: 0; background: none; text-al
 .map-title .scan-n { display: inline-block; min-width: 2ch; text-align: right; font-weight: inherit; font-variant-numeric: tabular-nums; }
 @media (max-width: 699px) { #toolbar:has(#homeBtn:not([hidden])) .lang-pill { display: none; } } /* phone, on a plan: the language switch lives on the home screen */
 .poster-row[hidden] { display: none !important; }
+
+/* ---- Home tabs (owner, 30 Oct) ---- */
+.home-tabs { margin-top: 18px; }
+.home-panel { margin-top: 14px; }
+.home-panel[hidden] { display: none !important; }
+.home-panel .ui-list__header:empty, .home-panel .ui-list__header:has(span:empty) { display: none; }
+.home-panel #bodyDemos { display: grid; }
+
+/* the home tabs always fit on one line, equal widths, no horizontal scrolling */
+.ui-root .home-tabs { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); overflow: visible; }
+.ui-root .home-tabs [role="tab"] { min-width: 0; justify-content: center; }
+.ui-root .home-tabs [role="tab"] span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -172,25 +172,28 @@
 
         <!-- Empty state -->
         <div class="when-empty">
-          <section class="ui-list-section block saved-block" id="savedBlock" hidden>
-            <div class="ui-list__header"><strong>My tours</strong><span id="savedNote"></span></div>
+          <!-- Home (30 Oct): one section at a time under the map, chosen from horizontal tabs -->
+          <nav class="result-tabs home-tabs" id="homeTabs" role="tablist" aria-label="Home sections">
+            <button type="button" role="tab" id="htab-saved" aria-controls="hpanel-saved" aria-selected="false" data-htab="saved" hidden><span>My tours</span></button>
+            <button type="button" role="tab" id="htab-demos" aria-controls="hpanel-demos" aria-selected="true" data-htab="demos"><span>Demos</span></button>
+            <button type="button" role="tab" id="htab-how" aria-controls="hpanel-how" aria-selected="false" data-htab="how"><span>How it works</span></button>
+          </nav>
+          <section class="ui-list-section home-panel saved-block" role="tabpanel" id="hpanel-saved" aria-labelledby="htab-saved" data-hpanel="saved" hidden>
+            <div class="ui-list__header"><span id="savedNote"></span></div>
             <ul class="ui-list saved-list" id="savedList"></ul>
           </section>
-          <div class="grid-2 block">
-            <div class="ui-list-section hide-wide">
-              <div class="ui-list__header"><strong>Demo acts</strong><span id="demoActsNote">One tap each</span></div>
-              <ul class="ui-list" id="bodyDemos"></ul>
-            </div>
-            <div class="ui-list-section">
-              <div class="ui-list__header"><strong>What the agent does</strong></div>
+          <section class="ui-list-section home-panel" role="tabpanel" id="hpanel-demos" aria-labelledby="htab-demos" data-hpanel="demos">
+            <div class="ui-list__header"><span id="demoActsNote">One tap each</span></div>
+            <ul class="ui-list" id="bodyDemos"></ul>
+          </section>
+          <section class="ui-list-section home-panel" role="tabpanel" id="hpanel-how" aria-labelledby="htab-how" data-hpanel="how" hidden>
               <ul class="ui-list how">
                 <li><div class="ui-row"><span class="how-n">1</span><div class="ui-row__body"><span class="ui-row__title">Resolves the act and up to three sound-alikes</span><span class="ui-row__subtitle"><code>/search</code> finds each act's Qloo ID. Sound-alikes stand in for acts too small for the graph.</span></div></div></li>
                 <li><div class="ui-row"><span class="how-n">2</span><div class="ui-row__body"><span class="ui-row__title">Ranks 34 metros by Hidden Market Score</span><span class="ui-row__subtitle">One national <code>urn:heatmap</code> call puts every city on the same scale, then taste rank meets population rank.</span></div></div></li>
                 <li><div class="ui-row"><span class="how-n">3</span><div class="ui-row__body"><span class="ui-row__title">Preps the first three dates</span><span class="ui-row__subtitle">Room, opener, sponsor, after-show spot and crowd brief, each citing the Qloo request behind it.</span></div></div></li>
               </ul>
               <p class="ui-list__footer">It also builds the plan a model without Qloo would make, so you can compare both on the map.</p>
-            </div>
-          </div>
+          </section>
         </div>
 
         <!-- Results (30 Oct): one panel at a time under the map, chosen from a sticky tab bar -->

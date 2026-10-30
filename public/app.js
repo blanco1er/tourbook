@@ -82,6 +82,7 @@ function bindUi() {
   $('#liveToggle').addEventListener('click', () => setLiveOpen(!$('#live').classList.contains('is-open')));
   $('#validateBtn').addEventListener('click', openPoster);
   $('#saveBtn').addEventListener('click', () => { if (isSaved()) unsaveTour(savedId()); else saveTour(); });
+  $('#homeTabs').addEventListener('click', (e) => { const b = e.target.closest('[role="tab"]'); if (b) { S.homeTabPicked = true; setHomeTab(b.dataset.htab); } });
   $('#savedList').addEventListener('click', (e) => {
     const del = e.target.closest('[data-unsave]'); if (del) { unsaveTour(del.dataset.unsave); return; }
     const o = e.target.closest('[data-saved]'); if (o) openSaved(o.dataset.saved);
@@ -396,9 +397,16 @@ function saveTour({ quiet = false } = {}) {
 }
 function unsaveTour(id) { writeSaved(readSaved().filter((x) => x.id !== id)); updateSaveBtn(); renderSaved(); }
 function updateSaveBtn() { const b = $('#saveBtn'); if (!b) return; const on = isSaved(); b.setAttribute('aria-pressed', String(on)); b.setAttribute('aria-label', t(on ? 'Tour saved' : 'Save this tour')); }
+function setHomeTab(tab) {
+  S.homeTab = tab;
+  $$('#homeTabs [role="tab"]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.htab === tab)));
+  $$('.home-panel').forEach((p) => { p.hidden = p.dataset.hpanel !== tab; });
+}
 function renderSaved() {
-  const list = readSaved(); const box = $('#savedBlock'); if (!box) return;
-  box.hidden = !list.length;
+  const list = readSaved(); const box = $('#hpanel-saved'); if (!box) return;
+  $('#htab-saved').hidden = !list.length;
+  if (!list.length && S.homeTab === 'saved') setHomeTab('demos');
+  if (list.length && !S.homeTabPicked) setHomeTab('saved'); // open on My tours when there are some, until the user picks a tab
   $('#savedNote').textContent = list.length ? t('{n} on this device', { n: list.length }) : '';
   $('#savedList').innerHTML = list.map((x) => `<li><div class="saved-row"><button type="button" class="saved-open" data-saved="${esc(x.id)}">${x.photo ? `<img src="/api/photo/${x.photo}" alt="" loading="lazy">` : `<span class="saved-ph">${icon('i-map')}</span>`}<span class="saved-txt"><b>${esc(x.name)}</b><small>${esc([t('{n} stops', { n: x.stops }), x.lead, new Date(x.savedAt).toLocaleDateString(LOCALE, { day: 'numeric', month: 'short' })].filter(Boolean).join(' · '))}</small></span></button><button type="button" class="saved-del" data-unsave="${esc(x.id)}" aria-label="${esc(t('Remove {name} from my tours', { name: x.name }))}">${icon('i-x')}</button></div></li>`).join('');
 }
