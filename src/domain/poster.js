@@ -62,13 +62,13 @@ async function artDirection(llm, { name, kind, genres, description, themes }) {
     const r = await llm.chat({
       json: true,
       messages: [
-        { role: 'system', content: 'You are the art director of a premium concert-poster studio. Return JSON only: {"style": string, "palette": string, "motifs": string, "mood": string}. The artwork will have NO text, NO letters, NO people, NO faces, NO hands (the real photo of the act and the type are added later). Make the direction specific to this act and different from a generic road-trip poster; choose the palette from the act itself, not orange by default.' },
+        { role: 'system', content: 'You are the art director of a premium concert-poster studio. Return JSON only: {"style": string, "palette": string, "motifs": string, "mood": string, "layout": string, "typography": string, "photo_treatment": string}. Design a complete tour poster for this act. layout: an original composition (not "photo top-left, title, list"); typography: a typeface style, case, weight and alignment that fit the act; photo_treatment: how the supplied real photograph of the act is placed and treated (e.g. full-bleed duotone, die-cut cut-out, tilted print, halftone, framed in a motif) WITHOUT redrawing or changing the face. No people other than in the supplied photo. Make it specific to this act; choose the palette from the act itself, not orange by default.' },
         { role: 'user', content: JSON.stringify({ act: name, kind, genres, about: description, audience_tastes: themes.slice(0, 8), suggested_style: base.style }) },
       ],
     });
     const d = JSON.parse(r.content || '{}');
     const ok = (v) => typeof v === 'string' && v.trim().length > 3;
-    return { style: ok(d.style) ? d.style : base.style, palette: ok(d.palette) ? d.palette : base.palette, motifs: ok(d.motifs) ? d.motifs : themes.slice(0, 5).join(', '), mood: ok(d.mood) ? d.mood : '' };
+    return { style: ok(d.style) ? d.style : base.style, palette: ok(d.palette) ? d.palette : base.palette, motifs: ok(d.motifs) ? d.motifs : themes.slice(0, 5).join(', '), mood: ok(d.mood) ? d.mood : '', layout: ok(d.layout) ? d.layout : '', typography: ok(d.typography) ? d.typography : '', photo: ok(d.photo_treatment) ? d.photo_treatment : '' };
   } catch { return { ...base, motifs: themes.slice(0, 5).join(', '), mood: '' }; }
 }
 
@@ -84,35 +84,75 @@ export function posterPrompt(dir) {
   ].filter(Boolean).join(' ');
 }
 
+// The whole poster designed by the image model (owner, 30 Oct: "the text and the photo are always laid out the same").
+// The exact text is given word for word and checked afterwards; the real photo is passed in and must not be redrawn.
+function fullPosterPrompt(dir, { name, lines, footer, hasPhoto }) {
+  return [
+    'Design a complete, print-ready concert tour poster, portrait 4:5, at the level of a top music-poster studio. Be bold and original: no template, every decision (composition, type, photo placement) serves this specific act.',
+    `Art style: ${dir.style}. Palette: ${dir.palette}.`,
+    dir.motifs ? `Motifs: ${dir.motifs}.` : '', dir.mood ? `Mood: ${dir.mood}.` : '',
+    dir.layout ? `Layout: ${dir.layout}.` : 'Layout: an original, bold composition specific to this act.',
+    dir.typography ? `Typography: ${dir.typography}.` : '',
+    hasPhoto ? `The attached image is the real photograph of ${name}. Integrate it into the design${dir.photo ? ` (${dir.photo})` : ''}. Keep the people in it exactly as photographed: do not redraw, restyle, replace or add any face or person.` : 'No people, no faces.',
+    'Render this text exactly, spelled exactly as written, and no other words, letters or numbers anywhere:',
+    `- headline: "${name}"`,
+    `- the tour stops, in this order, one per line: ${lines.map((l) => `"${l}"`).join(', ')}`,
+    `- small footer: "${footer}"`,
+    'All text must be sharp, legible and correctly spelled. No logos, no fake brand names, no extra captions.',
+  ].filter(Boolean).join('\n');
+}
+
+async function checkText(llm, b64, expected) {
+  if (!llm || llm.kind === 'mock') return { ok: true, skipped: true };
+  try {
+    const r = await llm.chat({ json: true, messages: [
+      { role: 'system', content: 'You proofread poster images. Return JSON only: {"ok": boolean, "issues": [string]}. ok is true only if every expected string appears legibly and spelled exactly, and there is no other misspelled or garbled text.' },
+      { role: 'user', content: [{ type: 'text', text: `Expected strings: ${JSON.stringify(expected)}` }, { type: 'image_url', image_url: { url: `data:image/png;base64,${b64}` } }] },
+    ] });
+    const d = JSON.parse(r.content || '{}');
+    return { ok: d.ok === true, issues: Array.isArray(d.issues) ? d.issues.slice(0, 5) : [] };
+  } catch { return { ok: true, skipped: true }; }
+}
+
 const hashOf = (o) => createHash('sha1').update(JSON.stringify(o)).digest('hex').slice(0, 20);
 export const posterFile = (hash) => (/^[a-f0-9]{20}$/.test(hash) ? resolve(CACHE, `${hash}.png`) : null);
 
 /** Returns { hash, cached, model } once the art exists on disk. Throws with a status when it cannot be made. */
-export async function posterArt({ entityId, name, description, kind, genres, themes, cities, beforeGenerate, llm }) {
-  const hash = hashOf({ v: 2, entityId, kind, genres, themes, cities }); // one image per act and tour
+export async function posterArt({ entityId, name, description, kind, genres, themes, cities, stops = [], photo, lang = 'en', beforeGenerate, llm }) {
+  const hash = hashOf({ v: 3, entityId, kind, genres, themes, cities, stops, lang }); // one poster per act, tour and language
   const file = posterFile(hash);
-  if (existsSync(file)) return { hash, cached: true, model: null };
+  if (existsSync(file)) return { hash, cached: true, model: null, full: true };
   const key = imageKey(); const model = await imageModel();
   if (!key || !model) throw Object.assign(new Error('No image model is available on this server.'), { status: 503, code: 'no_image_model' });
+  if (/^imagen/.test(model)) throw Object.assign(new Error('This image model cannot lay out a full poster.'), { status: 503, code: 'no_image_model' });
   beforeGenerate?.(); // daily caps are checked only when a new image would be paid for
   const dir = await artDirection(llm, { name, kind, genres, description, themes });
-  const prompt = posterPrompt(dir);
-  const imagen = /^imagen/.test(model);
-  const r = await fetch(`${API}/models/${model}:${imagen ? 'predict' : 'generateContent'}`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
-    body: JSON.stringify(imagen
-      ? { instances: [{ prompt }], parameters: { sampleCount: 1, aspectRatio: '3:4' } }
-      : { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseModalities: ['IMAGE'], imageConfig: { aspectRatio: '4:5' } } }),
-    signal: AbortSignal.timeout(90000),
-  });
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw Object.assign(new Error(j?.error?.message || `Image model error ${r.status}`), { status: 502, code: 'image_error' });
-  const b64 = imagen ? j?.predictions?.[0]?.bytesBase64Encoded : (j?.candidates?.[0]?.content?.parts || []).find((p) => p.inlineData?.data)?.inlineData?.data;
-  if (!b64) throw Object.assign(new Error('The image model returned no picture (it may have declined the request).'), { status: 502, code: 'image_empty' });
+  const lines = (stops.length ? stops : cities).map((c, i) => `${String(i + 1).padStart(2, '0')}  ${c}`);
+  const footer = lang === 'fr' ? 'Tracée selon le goût avec Qloo' : 'Routed by taste with Qloo';
+  let photoPart = null;
+  if (/^[0-9A-F-]{36}$/i.test(photo || '')) {
+    try { const pr = await fetch(`https://images.qloo.com/i/${photo}-1080x-auto.jpg`, { signal: AbortSignal.timeout(15000) }); if (pr.ok) photoPart = { inlineData: { mimeType: 'image/jpeg', data: Buffer.from(await pr.arrayBuffer()).toString('base64') } }; } catch { /* no photo: the poster is designed without it */ }
+  }
+  const prompt = fullPosterPrompt(dir, { name, lines, footer, hasPhoto: !!photoPart });
+  const paint = async () => {
+    const r = await fetch(`${API}/models/${model}:generateContent`, {
+      method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
+      body: JSON.stringify({ contents: [{ parts: [...(photoPart ? [photoPart] : []), { text: prompt }] }], generationConfig: { responseModalities: ['IMAGE'], imageConfig: { aspectRatio: '4:5' } } }),
+      signal: AbortSignal.timeout(120000),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw Object.assign(new Error(j?.error?.message || `Image model error ${r.status}`), { status: 502, code: 'image_error' });
+    const b64 = (j?.candidates?.[0]?.content?.parts || []).find((p) => p.inlineData?.data)?.inlineData?.data;
+    if (!b64) throw Object.assign(new Error('The image model returned no picture (it may have declined the request).'), { status: 502, code: 'image_empty' });
+    return b64;
+  };
+  // paint, proofread the text, paint once more if a word is wrong
+  let b64 = await paint();
+  let check = await checkText(llm, b64, [name, ...lines, footer]);
+  if (!check.ok) { const again = await paint(); const c2 = await checkText(llm, again, [name, ...lines, footer]); if (c2.ok || c2.skipped) { b64 = again; check = c2; } }
   mkdirSync(CACHE, { recursive: true });
   writeFileSync(file, Buffer.from(b64, 'base64'));
-  return { hash, cached: false, model, prompt, direction: dir };
+  return { hash, cached: false, model, full: true, direction: dir, proofread: check };
 }
 
 export const readPoster = (hash) => { const f = posterFile(hash); return f && existsSync(f) ? readFileSync(f) : null; };

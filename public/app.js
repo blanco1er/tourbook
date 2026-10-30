@@ -240,7 +240,7 @@ function run(input, { rid, keepView = false, demoIndex } = {}) {
   if (S.running) { toast({ title: t('Already planning'), detail: t('{artist} is still running. One plan at a time.', { artist: S.input?.artist }) }); return; }
   S.running = true;
   S.rid = rid || newRid(); S.retryRid = null;
-  S.es?.close(); S.book = null; S.dossiers = {}; setActPhoto(null); S.actShown = false; $('#actId').hidden = true; S.validated = false; S.posterArt = null; S.act = null; updateValidate(); S.calls = []; S.tools = 0; S.trace = []; S.input = input; S.liveTop = null; S.heat = null; S.curTool = null; S.plan = 'qloo';
+  S.es?.close(); S.book = null; S.dossiers = {}; setActPhoto(null); S.actShown = false; $('#actId').hidden = true; S.validated = false; S.posterArt = null; S.posterFull = false; S.act = null; updateValidate(); S.calls = []; S.tools = 0; S.trace = []; S.input = input; S.liveTop = null; S.heat = null; S.curTool = null; S.plan = 'qloo';
   fillForm(input);
   stopVoice(); if ($('#sheet-dossier').open) closeSheet('sheet-dossier');
   setBusy(true, demoIndex ?? S.cfg.demos.findIndex((d) => d.artist === input.artist));
@@ -375,7 +375,7 @@ function restoreSession() {
 function goHome() {
   if (S.running) return;
   stopVoice(); if ($('#sheet-dossier').open) closeSheet('sheet-dossier');
-  S.book = null; S.input = null; S.trace = []; S.calls = []; S.tools = 0; S.plan = 'qloo'; S.liveTop = null; S.heat = null; setActPhoto(null); $('#actId').hidden = true; S.validated = false; S.posterArt = null; S.act = null; updateValidate();
+  S.book = null; S.input = null; S.trace = []; S.calls = []; S.tools = 0; S.plan = 'qloo'; S.liveTop = null; S.heat = null; setActPhoto(null); $('#actId').hidden = true; S.validated = false; S.posterArt = null; S.posterFull = false; S.act = null; updateValidate();
   try { sessionStorage.removeItem(SESSION_KEY); } catch { /* storage blocked */ }
   clearPending();
   const v = $('#view-plan'); v.dataset.state = 'empty';
@@ -1716,6 +1716,7 @@ async function drawPoster() {
   x.clearRect(0, 0, W, H);
   // background: the AI artwork, or a warm dark field until it is made
   let art = null; if (S.posterArt) { try { art = await loadImg(S.posterArt); } catch { art = null; } }
+  if (art && S.posterFull) { coverDraw(x, art, 0, 0, W, H); return; } // the model designed the whole poster: show it as is
   let accent = '#FF8A4C';
   if (art) { coverDraw(x, art, 0, 0, W, H); accent = artAccent(x, W, H) || accent; }
   else {
@@ -1807,10 +1808,10 @@ async function makePosterArt() {
   $('#posterBusy').hidden = false; $('#posterBusyText').textContent = t('Artwork for {name}', { name: b.artist.selected.name }); startDots();
   const themes = [...new Set((b.dates || []).flatMap((d) => (d.crowd_brief?.themes || []).map((x) => x.name)))].slice(0, 8);
   try {
-    const r = await fetch('/api/poster', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ entityId: b.artist.selected.id, name: b.artist.selected.name, description: b.artist.selected.description || '', kind: S.input?.type || 'artist', genres: S.act?.genres || [], themes, cities: tourStops().map((s) => s.name) }) });
+    const r = await fetch('/api/poster', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ entityId: b.artist.selected.id, name: b.artist.selected.name, description: b.artist.selected.description || '', kind: S.input?.type || 'artist', genres: S.act?.genres || [], themes, cities: tourStops().map((s) => s.name), stops: tourStops().map((s) => `${s.name}, ${s.state}`), photo: S.act?.photo || b.artist.selected.photo || null, lang: LANG }) });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw Object.assign(new Error(j.error || `HTTP ${r.status}`), { code: j.code });
-    S.posterArt = j.url; btn.hidden = true;
+    S.posterArt = j.url; S.posterFull = !!j.full; btn.hidden = true;
     await drawPoster();
   } catch (e) {
     toast({ title: e.code === 'no_image_model' ? t('No image model on this server') : t('The artwork could not be made'), detail: e.code === 'no_image_model' ? t('The poster keeps its typographic version.') : t(e.message) });
