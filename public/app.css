@@ -962,3 +962,12 @@ button.live-head { width: 100%; padding: 0; border: 0; background: none; text-al
 .lv-stage.is-done .lv-n { background-color: var(--taste-soft); }
 .ask-form:focus-within { box-shadow: 0 0 0 1.5px var(--label-secondary), 0 8px 26px light-dark(rgba(15,23,42,.08), rgba(0,0,0,.4)); }
 .ask-sug:hover { box-shadow: 0 0 0 1px var(--label-tertiary); }
+
+/* ---- Verified = green (owner's CRT palette, 30 Oct): only on check marks, never on text or surfaces ---- */
+:root { --ok: light-dark(#00A040, #00C853); --ok-soft: light-dark(rgba(0,160,64,.12), rgba(0,200,83,.18)); }
+.tl-state, .lv-state { background: var(--ok-soft); color: var(--ok); }
+.tl-item.is-running .tl-state, .lv-line.is-running .lv-state { background: none; }
+.lv-stage.is-done .lv-n { background-color: var(--ok-soft); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='m6 12.5 4 4L18 8' stroke='%2300A040' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
+.mk.is-ready .lbl i::after { background-color: var(--ok); }
+.steps li.is-done::before { background: var(--taste); }
+.guard-ok { color: var(--ok) !important; background: var(--ok-soft) !important; }
