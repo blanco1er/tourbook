@@ -1907,9 +1907,9 @@ async function drawPoster() {
 const POSTER_STAGE = {
   start: { from: 1, to: 6, tau: 2, label: 'Starting…' },
   direction: { from: 6, to: 16, tau: 4, label: 'Choosing the art direction…' },
-  painting: { from: 16, to: 94, tau: 18, label: 'Composing the poster…' },
-  proofreading: { from: 72, to: 90, tau: 5, label: 'Proofreading the text…' },
-  repainting: { from: 76, to: 96, tau: 24, label: 'Fixing a word, painting again…' },
+  painting: { from: 16, to: 80, tau: 18, label: 'Composing the poster…' },
+  proofreading: { from: 80, to: 95, tau: 4, label: 'Proofreading the text…' },
+  repainting: { from: 82, to: 97, tau: 18, label: 'Fixing a word, painting again…' },
   done: { from: 100, to: 100, tau: 1, label: 'Ready' },
 };
 function startDots() {

@@ -160,14 +160,24 @@ export async function posterArt({ entityId, name, description, kind, genres, the
     if (!b64) throw Object.assign(new Error('The image model returned no picture (it may have declined the request).'), { status: 502, code: 'image_empty' });
     return b64;
   };
-  // One image, no retries (owner, 30 Oct). The model only sets the two big lines; the app sets the date block,
+  // Two big lines only (owner, 30 Oct). The model only sets the two big lines; the app sets the date block,
   // the ticket line and the footer in the reserved bottom area, so small text is always exact.
+  // At most two attempts (owner, 30 Oct): if the proofread finds a wrong or extra word, paint once more, keep the better.
   onStage('painting');
-  const b64 = await paint();
+  let b64 = await paint();
+  onStage('proofreading');
+  let check = await checkText(llm, b64, [name, tourLabel]);
+  if (!check.ok) {
+    onStage('repainting');
+    const again = await paint(); onStage('proofreading');
+    const c2 = await checkText(llm, again, [name, tourLabel]);
+    const score = (c) => (c.missing?.length || 0) * 3 + (c.extra?.length || 0);
+    if (c2.ok || c2.skipped || score(c2) < score(check)) { b64 = again; check = c2; }
+  }
   mkdirSync(CACHE, { recursive: true });
   writeFileSync(file, Buffer.from(b64, 'base64'));
   writeFileSync(file.replace(/\.png$/, '.json'), JSON.stringify({ direction: dir }));
-  return { hash, cached: false, model, full: true, band: true, direction: dir };
+  return { hash, cached: false, model, full: true, band: true, direction: dir, proofread: check };
 }
 
 export const readPoster = (hash) => { const f = posterFile(hash); return f && existsSync(f) ? readFileSync(f) : null; };
