@@ -971,3 +971,30 @@ button.live-head { width: 100%; padding: 0; border: 0; background: none; text-al
 .mk.is-ready .lbl i::after { background-color: var(--ok); }
 .steps li.is-done::before { background: var(--taste); }
 .guard-ok { color: var(--ok) !important; background: var(--ok-soft) !important; }
+
+/* ---- Agent tab as a console (owner, 30 Oct): small monospace text, one block per tool call ---- */
+.tl-stage { padding: 12px 14px 8px; }
+.tl-items { font: 12px/1.5 var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); }
+.tl-item { padding: 8px 0; }
+.tl-item summary { min-height: 28px; padding: 0; gap: 8px; align-items: center; }
+.tl-item .tl-state { width: 16px; height: 16px; }
+.tl-item .tl-state .ui-icon { width: 10px; height: 10px; }
+.tl-fn { flex: none; font: var(--weight-semibold) 12.5px/1.4 var(--font-mono, ui-monospace, Menlo, monospace); color: var(--label); }
+.tl-a { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--label-secondary); }
+.tl-meta { display: inline !important; font: 11.5px/1.4 var(--font-mono, ui-monospace, Menlo, monospace); color: var(--label-tertiary); }
+.tl-cmt { margin: 2px 0 2px 24px; color: var(--label-tertiary); white-space: normal; }
+.tl-item .calls { list-style: none; margin: 0 0 0 24px; padding: 0; display: grid; gap: 1px; }
+.tl-item .calls li { display: flex; gap: 8px; min-width: 0; color: var(--label-secondary); }
+.tl-item .calls .verb { flex: none; font-weight: var(--weight-semibold); color: var(--label); }
+.tl-item .calls li span:nth-child(2) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tl-item .calls em { margin-left: auto; flex: none; font-style: normal; color: var(--label-tertiary); }
+.tl-item .calls li.is-err, .tl-err { color: var(--status-critical-text); }
+.tl-err { margin: 2px 0 0 24px; }
+.tl-body { margin: 6px 0 4px 24px; padding: 8px 10px; }
+.tl-args { margin: 0; font-size: 11.5px; }
+.tl-note { font: italic 12px/1.5 var(--font-mono, ui-monospace, Menlo, monospace); }
+.tl-item + .tl-item { border-top: 0.5px dashed var(--separator); }
+.runlog { grid-template-columns: minmax(0, 1fr); }
+.tl-stage, .tl-items, .tl-item, .tl-item details, .tl-item summary { min-width: 0; max-width: 100%; }
+.tl-stage { overflow: hidden; }
+.tl-cmt { overflow-wrap: anywhere; }

@@ -576,13 +576,15 @@ function agentLine({ kind, d, text }) {
     const g = agentGroup(d.stage);
     const li = document.createElement('li');
     li.className = 'tl-item is-running'; li.dataset.id = d.id || ''; li.dataset.req = '0'; li.dataset.ms = '0';
-    li.innerHTML = `<details><summary><span class="tl-state" aria-hidden="true">${icon('i-check')}</span><span class="tl-title">${esc(toolPhrase(d))}${S.pendingWhy ? `<small class="tl-why">${esc(S.pendingWhy)}</small>` : ''}</span><span class="tl-meta"></span>${icon('i-chev-r', 'tl-chev')}</summary>
-      <div class="tl-body"><p class="tl-fn"><code>${esc(d.name)}</code></p><pre class="tl-args">${esc(JSON.stringify(d.args || {}, null, 2))}</pre><ul class="calls"></ul></div></details>`;
+    // Console look (owner, 30 Oct): tool name and arguments in small monospace, what it does as a comment, then every Qloo request.
+    li.innerHTML = `<details><summary><span class="tl-state" aria-hidden="true">${icon('i-check')}</span><code class="tl-fn">${esc(d.name)}</code><span class="tl-a">${esc(argSummary(d.args))}</span><span class="tl-meta"></span></summary>
+      <div class="tl-body"><pre class="tl-args">${esc(JSON.stringify(d.args || {}, null, 2))}</pre></div></details>
+      <p class="tl-cmt"># ${esc(S.pendingWhy || toolPhrase(d))}</p><ul class="calls"></ul>`;
     g.querySelector('.tl-items').append(li); S.curTool = li; S.pendingWhy = null;
     spring(li, [{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { preset: 'quick', fill: 'none' });
   } else if (kind === 'toolerr') {
     const li = $(`#runlog .tl-item[data-id="${CSS.escape(d.id || '')}"]`) || S.curTool;
-    if (li) { li.classList.remove('is-running'); li.classList.add('is-err'); li.querySelector('.tl-meta').textContent = t('failed'); li.querySelector('.tl-body').insertAdjacentHTML('afterbegin', `<p class="tl-err">${esc(d.error)}</p>`); }
+    if (li) { li.classList.remove('is-running'); li.classList.add('is-err'); li.querySelector('.tl-meta').textContent = t('failed'); li.querySelector('.tl-cmt').insertAdjacentHTML('afterend', `<p class="tl-err">! ${esc(d.error)}</p>`); }
   } else if (kind === 'done') {
     const li = $(`#runlog .tl-item[data-id="${CSS.escape(d.id || '')}"]`);
     if (li) li.classList.remove('is-running');
@@ -594,7 +596,7 @@ function agentLine({ kind, d, text }) {
     if (li) {
       li.querySelector('.calls').insertAdjacentHTML('beforeend', html);
       li.dataset.req = String(Number(li.dataset.req) + 1); li.dataset.ms = String(Number(li.dataset.ms) + Number(d.ms || 0));
-      li.querySelector('.tl-meta').textContent = `${plural(Number(li.dataset.req), 'request')} · ${d.cache === 'hit' ? t('cached') : `${li.dataset.ms} ms`}`;
+      li.querySelector('.tl-meta').textContent = `${li.dataset.ms} ms`;
     }
   }
   agentSums();
