@@ -36,6 +36,7 @@
   <symbol id="i-chev-r" viewBox="0 0 24 24"><path d="m9.5 6 6 6-6 6"/></symbol>
   <symbol id="i-arrow-r" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
   <symbol id="i-search-s" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 4.5 4.5"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.4 3.6 5.2 3.6 8.5s-1.2 6.1-3.6 8.5c-2.4-2.4-3.6-5.2-3.6-8.5s1.2-6.1 3.6-8.5z"/></symbol>
   <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.4"/></symbol>
   <symbol id="i-route" viewBox="0 0 24 24"><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="6" r="2.2"/><path d="M8 18h7.5a3.5 3.5 0 0 0 0-7h-7a3.5 3.5 0 0 1 0-7H16"/></symbol>
   <symbol id="i-x" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
@@ -92,10 +93,7 @@
         <button class="ui-icon-button" type="button" id="shareBtn" aria-label="Copy a link to this plan" title="Copy link"><svg class="ui-icon"><use href="#i-link"/></svg></button>
         <button class="ui-icon-button" type="button" id="printBtn" aria-label="Save the plan as PDF" title="Save as PDF"><svg class="ui-icon"><use href="#i-print"/></svg></button>
       </div>
-      <div class="ui-toolbar__group ui-glass lang-switch" role="group" aria-label="Language">
-        <button class="ui-icon-button" type="button" data-lang="en" lang="en" aria-label="English" aria-pressed="true">EN</button>
-        <button class="ui-icon-button" type="button" data-lang="fr" lang="fr" aria-label="Français" aria-pressed="false">FR</button>
-      </div>
+      <button class="lang-pill" type="button" data-lang-toggle aria-label="Language: English. Switch to French"><svg class="ui-icon" aria-hidden="true"><use href="#i-globe"/></svg><span data-l="en">EN</span><span data-l="fr">FR</span></button>
       <button class="ui-button hide-compact" type="button" id="newPlanBtn" data-new-plan><svg class="ui-icon"><use href="#i-plus"/></svg>New plan</button>
     </header>
 

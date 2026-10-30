@@ -585,11 +585,11 @@
 
   // Language switch (EN / FR): saves the choice, then reloads the same view in the other language (no auto-run).
   function bindSwitch() {
-    for (const b of document.querySelectorAll('[data-lang]')) {
-      b.setAttribute('aria-pressed', String(b.dataset.lang === LANG));
+    for (const b of document.querySelectorAll('[data-lang-toggle]')) {
+      b.dataset.cur = LANG;
+      b.setAttribute('aria-label', LANG === 'fr' ? 'Langue : français. Passer en anglais' : 'Language: English. Switch to French');
       b.addEventListener('click', () => {
-        const next = b.dataset.lang;
-        if (!SUPPORTED.includes(next) || next === LANG) return;
+        const next = LANG === 'fr' ? 'en' : 'fr';
         try { localStorage.setItem('lang', next); } catch { /* the URL param below still carries it */ }
         const url = new URL(location.href);
         url.searchParams.set('lang', next);

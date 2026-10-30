@@ -88,7 +88,7 @@ try {
   // ---- language: English by default, French on demand (UI dictionary + agent text) ----
   const i18n = await fetch(`${base}/i18n.js`);
   const i18nJs = await i18n.text();
-  ok(i18n.ok && i18nJs.includes("'Room mode': 'Mode salle'") && html.includes('src="/i18n.js"') && html.includes('data-lang="fr"'), 'i18n: /i18n.js served, loaded by the page, FR / EN switch present');
+  ok(i18n.ok && i18nJs.includes("'Room mode': 'Mode salle'") && html.includes('src="/i18n.js"') && html.includes('data-lang-toggle'), 'i18n: /i18n.js served, loaded by the page, FR / EN switch present');
   const planFr = await (await fetch(`${base}/api/plan`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ artist: demo.artist, proxies: demo.proxies, lang: 'fr' }) })).json();
   ok(/^Le marché le plus fort de /.test(planFr.summary || '') && planFr.summary.includes('Score de marché caché'), `i18n: French summary in mock mode ("${(planFr.summary || '').slice(0, 60)}…")`);
   ok(planFr.trace.filter((x) => x.type === 'thought').every((x) => !/^Resolving|^Ranking|^Profiling|^Checking/.test(x.text)), 'i18n: French run narrates in French');
