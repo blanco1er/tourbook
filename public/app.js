@@ -273,7 +273,7 @@ function run(input, { rid, keepView = false, demoIndex, resume = false } = {}) {
   $('#planError').hidden = true; $('#stats').hidden = true; $('#planToggle').hidden = true;
   $('#planToggle input[value="qloo"]').checked = true; $('#planToggle input[value="qloo"]').dispatchEvent(new Event('change', { bubbles: true }));
   $('#summary').innerHTML = `<strong>${t('Planning {artist}.', { artist: esc(input.artist) })}</strong> <span class="muted" id="thought">${t('Every step and every Qloo request shows up as it happens.')}</span>`;
-  $('#live').hidden = false; setLiveOpen(!matchMedia('(max-width: 699px)').matches); $('#liveLog').innerHTML = ''; $('#steps').innerHTML = ''; $('#lvStages').innerHTML = ''; $('#liveNow').hidden = false; setNow(t('Connecting to the agent…'));
+  $('#live').hidden = false; setLiveOpen(true); // open by default on every screen (owner, 30 Oct); one tap on the header folds it $('#liveLog').innerHTML = ''; $('#steps').innerHTML = ''; $('#lvStages').innerHTML = ''; $('#liveNow').hidden = false; setNow(t('Connecting to the agent…'));
   S.cityWork = {}; S.readyIds = [];
   clearInterval(S.liveTimer); const t0 = Date.now();
   const tick = () => { const el = $('#liveMeta'); if (el) el.innerHTML = `${Math.round((Date.now() - t0) / 1000)} s · <b class="live-n">${S.calls.length}</b> ${t((LANG === 'fr' ? S.calls.length <= 1 : S.calls.length === 1) ? 'Qloo request' : 'Qloo requests')}`; };
