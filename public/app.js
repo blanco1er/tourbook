@@ -1006,6 +1006,44 @@ function mapPadding() {
   const under = isWide() && !$('#app').classList.contains('is-sidebar-collapsed') ? 284 : 0;
   return w < 560 ? { top: 132, bottom: 110, left: 36, right: 36 } : { top: 96, bottom: 124, left: under + 70, right: 80 };
 }
+// A real scan while the 34 metros are scored (owner, 30 Oct): a green line of light drawn by the map itself
+// sweeps west to east along the longitudes, with a fading wake, and each metro lights up the moment it is crossed.
+const SCAN = { W: -126, E: -66, ms: 2600 };
+function scanLayers() {
+  const m = S.map; if (!m || !m.isStyleLoaded()) return false;
+  if (!m.getSource('scan')) m.addSource('scan', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  const glow = '#00C853';
+  if (!m.getLayer('scan-wake')) m.addLayer({ id: 'scan-wake', type: 'fill', source: 'scan', filter: ['==', ['get', 'k'], 'wake'], paint: { 'fill-color': glow, 'fill-opacity': ['get', 'o'] } });
+  if (!m.getLayer('scan-glow')) m.addLayer({ id: 'scan-glow', type: 'line', source: 'scan', filter: ['==', ['get', 'k'], 'line'], paint: { 'line-color': glow, 'line-width': 26, 'line-blur': 22, 'line-opacity': 0.55 } });
+  if (!m.getLayer('scan-line')) m.addLayer({ id: 'scan-line', type: 'line', source: 'scan', filter: ['==', ['get', 'k'], 'line'], paint: { 'line-color': '#B9F6CA', 'line-width': 2, 'line-opacity': 0.95 } });
+  return true;
+}
+function startScan() {
+  if (S.scanRaf || !S.map || reduceMotion()) return;
+  const t0 = performance.now();
+  const step = (now) => {
+    S.scanRaf = requestAnimationFrame(step);
+    if (!scanLayers()) return;
+    const p = ((now - t0) % SCAN.ms) / SCAN.ms; const L = SCAN.W + (SCAN.E - SCAN.W) * p;
+    const feats = [{ type: 'Feature', properties: { k: 'line' }, geometry: { type: 'LineString', coordinates: [[L, -5], [L, 80]] } }];
+    for (let i = 0; i < 7; i++) { // the wake: thin bands that fade behind the line
+      const a = L - (i + 1) * 0.9, b = L - i * 0.9; if (b <= SCAN.W) break;
+      feats.push({ type: 'Feature', properties: { k: 'wake', o: 0.16 * (1 - i / 7) }, geometry: { type: 'Polygon', coordinates: [[[Math.max(a, SCAN.W), -5], [b, -5], [b, 80], [Math.max(a, SCAN.W), 80], [Math.max(a, SCAN.W), -5]]] } });
+    }
+    S.map.getSource('scan').setData({ type: 'FeatureCollection', features: feats });
+    for (const mk of S.markers) { // the metro under the line lights up
+      const ll = mk.getLngLat(); const el = mk.getElement();
+      if (ll.lng <= L && ll.lng > L - 1.6) { if (!el.classList.contains('is-hit')) { el.classList.remove('is-hit'); void el.offsetWidth; el.classList.add('is-hit'); } }
+      else if (ll.lng > L || ll.lng < L - 6) el.classList.remove('is-hit');
+    }
+  };
+  S.scanRaf = requestAnimationFrame(step);
+}
+function stopScan() {
+  cancelAnimationFrame(S.scanRaf); S.scanRaf = 0;
+  S.map?.getSource('scan')?.setData({ type: 'FeatureCollection', features: [] });
+  S.markers?.forEach((m) => m.getElement().classList.remove('is-hit'));
+}
 function clearMarkers() { S.markers.forEach((m) => m.remove()); S.markers = []; S.map?.getSource('route')?.setData({ type: 'FeatureCollection', features: [] }); stopBus(); }
 let busAnim;
 function stopBus() { cancelAnimationFrame(busAnim); S.map?.getSource('bus')?.setData({ type: 'FeatureCollection', features: [] }); }
@@ -1131,11 +1169,11 @@ function drawBaseMap() {
   drawHeat(false);
   $('#legend').innerHTML = `<b>${t('34 US metros')}</b><span class="ui-secondary">${t('Sized by population, the way tours are usually routed.')}${S.running ? ` ${t('Scoring them by taste…')}` : ''}</span>`;
   setMapTitle(S.running ? `<span class="live-dot"></span>${t('Scoring 34 metros by taste')}` : '');
-  $('#mapwrap').classList.toggle('is-scan', !!S.running);
+  if (S.running) startScan(); else stopScan();
 }
 function drawLiveTop() {
   if (!S.map || !S.liveTop) return;
-  clearMarkers(); $('#mapwrap').classList.remove('is-scan');
+  clearMarkers(); stopScan();
   const top = new Map(S.liveTop.map((m, i) => [m.id, { ...m, rank: i + 1 }]));
   for (const c of S.cfg.cities) {
     const t = top.get(c.id);
@@ -1151,7 +1189,7 @@ function drawLiveTop() {
 let routeAnim;
 function drawMap() {
   if (!S.map || !S.book?.markets) return;
-  clearMarkers(); $('#mapwrap').classList.remove('is-scan');
+  clearMarkers(); stopScan();
   const b = S.book; const all = b.markets.all;
   const affs = all.map((m) => m.affinity); const lo = Math.min(...affs), hi = Math.max(...affs);
   const maxPop = Math.max(...all.map((m) => m.pop));
@@ -1593,7 +1631,7 @@ function openWho() {
   $('#whoList').innerHTML = list.map((c, i) => `<li><button type="button" class="who-row" data-who="${i}">${c.photo ? `<img src="/api/photo/${c.photo}" alt="">` : `<span class="who-ph">${icon('i-note')}</span>`}<span class="who-txt"><b>${esc(c.name)}</b><small>${esc([...actFacts(c), c.description].filter(Boolean).join(' · '))}</small></span>${icon('i-chev-r', 'who-chev')}</button></li>`).join('');
   openSheet('sheet-who');
 }
-function updateAvatar() { const show = !!S.actPhoto && S.view === 'plan' && !!(S.running || S.book); $('#tbAvatar').hidden = !show || !$('#tbAvatar').complete; $('#toolbar').classList.toggle('has-avatar', show); }
+function updateAvatar() { const img = $('#tbAvatar'); const show = !!S.actPhoto && S.view === 'plan' && !!(S.running || S.book) && img.complete && img.naturalWidth > 0; img.hidden = !show; $('#toolbar').classList.toggle('has-avatar', show); }
 
 // ---------------- live suggestions in the new-plan form (owner, 30 Oct) ----------------
 // As you type, Qloo's matches show with their photo, so a tour never starts on the wrong act. Nothing on Qloo for
@@ -1752,4 +1790,4 @@ function sharePoster(share) {
   }, 'image/png');
 }
 
-window.Tourbook = { S, UI, briefingText, run }; // handy for debugging in the console
+window.Tourbook = { S, UI, briefingText, run, startScan, stopScan }; // handy for debugging in the console

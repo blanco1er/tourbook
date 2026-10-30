@@ -1175,3 +1175,9 @@ button.live-head { width: 100%; padding: 0; border: 0; background: none; text-al
 .ui-root .act-tag::before { background: var(--ok); }
 .ui-root .fame-band { border-right-color: var(--label-tertiary); }
 .ui-root .room-search { box-shadow: inset 0 0 0 0.5px var(--label-tertiary); } .ui-root .room-search:focus-within { box-shadow: inset 0 0 0 1.5px var(--label-secondary); }
+
+/* the old CSS sweep is replaced by the map-drawn scan line */
+#mapwrap.is-scan::after { display: none !important; }
+#mapwrap.is-scan .mk.is-minor .dot { animation: none !important; }
+.mk.is-hit .dot { animation: hit .9s ease-out both !important; }
+@keyframes hit { 0% { transform: scale(1); } 18% { transform: scale(1.9); background: #00C853; box-shadow: 0 0 0 6px rgba(0,200,83,.25), 0 0 18px rgba(0,200,83,.8); } 100% { transform: scale(1); } }
