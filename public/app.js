@@ -1670,7 +1670,7 @@ function attachSuggest(input, list, { head }) {
 function updateValidate() {
   const btn = $('#validateBtn'); if (!btn) return;
   btn.querySelector('span').textContent = S.validated ? t('Tour poster') : t('Validate the tour');
-  btn.querySelector('use').setAttribute('href', S.validated ? '#i-spark' : '#i-check');
+  btn.querySelector('use').setAttribute('href', S.validated ? '#i-image' : '#i-check');
   btn.classList.toggle('ui-button--prominent', !S.validated);
   $('#validateNote').textContent = S.validated ? t('Tour validated') : t('Then make its poster');
 }
@@ -1803,8 +1803,8 @@ function stopDots() {
 }
 async function makePosterArt() {
   const b = S.book; if (!b || S.posterBusy) return;
-  S.posterBusy = true; const btn = $('#posterArtBtn'); btn.disabled = true; const label = btn.querySelector('span').textContent; btn.querySelector('span').textContent = t('Painting…');
-  $('#posterBusy').hidden = false; $('#posterBusyText').textContent = t('The AI is painting {name}’s world', { name: b.artist.selected.name }); startDots();
+  S.posterBusy = true; const btn = $('#posterArtBtn'); btn.disabled = true; const label = btn.querySelector('span').textContent; btn.querySelector('span').textContent = t('Artwork in progress…');
+  $('#posterBusy').hidden = false; $('#posterBusyText').textContent = t('Artwork for {name}', { name: b.artist.selected.name }); startDots();
   const themes = [...new Set((b.dates || []).flatMap((d) => (d.crowd_brief?.themes || []).map((x) => x.name)))].slice(0, 8);
   try {
     const r = await fetch('/api/poster', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ entityId: b.artist.selected.id, name: b.artist.selected.name, description: b.artist.selected.description || '', kind: S.input?.type || 'artist', genres: S.act?.genres || [], themes, cities: tourStops().map((s) => s.name) }) });
