@@ -1723,7 +1723,8 @@ async function drawPoster() {
     const r = x.createRadialGradient(W * 0.78, H * 0.22, 0, W * 0.78, H * 0.22, W * 0.9); r.addColorStop(0, 'rgba(226,86,31,.55)'); r.addColorStop(0.55, 'rgba(226,86,31,.12)'); r.addColorStop(1, 'rgba(226,86,31,0)'); x.fillStyle = r; x.fillRect(0, 0, W, H);
   }
   let g = x.createLinearGradient(0, 0, 0, 420); g.addColorStop(0, 'rgba(0,0,0,.5)'); g.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = g; x.fillRect(0, 0, W, 420);
-  g = x.createLinearGradient(0, H * 0.32, 0, H); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.45, 'rgba(0,0,0,.62)'); g.addColorStop(1, 'rgba(0,0,0,.9)'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+  g = x.createLinearGradient(0, H * 0.3, 0, H); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.35, 'rgba(0,0,0,.6)'); g.addColorStop(1, 'rgba(0,0,0,.92)'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+  if (art) { g = x.createLinearGradient(0, 0, W, 0); g.addColorStop(0, 'rgba(0,0,0,.45)'); g.addColorStop(0.75, 'rgba(0,0,0,0)'); x.fillStyle = g; x.fillRect(0, H * 0.32, W, H * 0.68); } // the type side stays readable on busy art
   // the act's real photo (Qloo), never a generated face
   if (S.act?.photo) {
     try {
@@ -1767,10 +1768,43 @@ async function drawPoster() {
   const hid = stops.filter((s) => s.hidden).length;
   if (hid) { const txt = t('{n} hidden markets', { n: hid }); const w = x.measureText(txt).width; x.beginPath(); x.arc(W - 72 - w - 22, H - 72, 9, 0, Math.PI * 2); x.fillStyle = accent; x.fill(); x.fillStyle = 'rgba(255,255,255,.6)'; x.fillText(txt, W - 72 - w, H - 64); }
 }
+// While the artwork is painted (owner, 30 Oct): a living dot grid on black, a soft swell drifting through it, and a
+// percentage. The percentage is an estimate from the usual generation time; it only passes 95 % when the image is in.
+function startDots() {
+  const c = $('#posterDots'); const box = c.parentElement; const dpr = Math.min(2, devicePixelRatio || 1);
+  const W = box.clientWidth, H = box.clientHeight; c.width = W * dpr; c.height = H * dpr; c.style.width = `${W}px`; c.style.height = `${H}px`;
+  const x = c.getContext('2d'); x.scale(dpr, dpr);
+  const gap = Math.max(11, Math.round(W / 28)); const t0 = performance.now(); S.dotsPct = 0; S.dotsDone = false;
+  const frame = (now) => {
+    const t = (now - t0) / 1000;
+    x.clearRect(0, 0, W, H);
+    // two soft swells on slow Lissajous paths
+    const b1 = [W * (0.5 + 0.32 * Math.sin(t * 0.55)), H * (0.45 + 0.3 * Math.sin(t * 0.37 + 1))];
+    const b2 = [W * (0.5 + 0.3 * Math.cos(t * 0.42 + 2)), H * (0.55 + 0.28 * Math.cos(t * 0.5))];
+    const R = Math.max(W, H) * 0.42;
+    for (let yy = gap / 2; yy < H; yy += gap) for (let xx = gap / 2; xx < W; xx += gap) {
+      const d1 = Math.hypot(xx - b1[0], yy - b1[1]) / R, d2 = Math.hypot(xx - b2[0], yy - b2[1]) / R;
+      const v = Math.min(1, Math.exp(-d1 * d1 * 2.2) + 0.7 * Math.exp(-d2 * d2 * 2.6));
+      const r = 0.6 + v * gap * 0.28; x.beginPath(); x.arc(xx, yy, r, 0, Math.PI * 2);
+      x.fillStyle = `rgba(255,255,255,${0.16 + v * 0.7})`; x.fill();
+    }
+    if (!S.dotsDone) S.dotsPct = Math.min(95, 95 * (1 - Math.exp(-t / 13)));
+    const pct = Math.round(S.dotsPct); const el = $('#posterPct'); el.textContent = `${pct} %`; el.setAttribute('aria-valuenow', pct);
+    S.dotsRaf = requestAnimationFrame(frame);
+  };
+  cancelAnimationFrame(S.dotsRaf); S.dotsRaf = requestAnimationFrame(frame);
+}
+function stopDots() {
+  return new Promise((done) => {
+    S.dotsDone = true; const from = S.dotsPct || 0; const t0 = performance.now();
+    const fin = (now) => { const k = Math.min(1, (now - t0) / 450); S.dotsPct = from + (100 - from) * k; if (k < 1) requestAnimationFrame(fin); else { setTimeout(() => { cancelAnimationFrame(S.dotsRaf); done(); }, 250); } };
+    requestAnimationFrame(fin);
+  });
+}
 async function makePosterArt() {
   const b = S.book; if (!b || S.posterBusy) return;
-  S.posterBusy = true; const btn = $('#posterArtBtn'); btn.disabled = true;
-  $('#posterBusy').hidden = false; $('#posterBusyText').textContent = t('The AI is painting {name}’s world… about 15 s', { name: b.artist.selected.name });
+  S.posterBusy = true; const btn = $('#posterArtBtn'); btn.disabled = true; const label = btn.querySelector('span').textContent; btn.querySelector('span').textContent = t('Painting…');
+  $('#posterBusy').hidden = false; $('#posterBusyText').textContent = t('The AI is painting {name}’s world', { name: b.artist.selected.name }); startDots();
   const themes = [...new Set((b.dates || []).flatMap((d) => (d.crowd_brief?.themes || []).map((x) => x.name)))].slice(0, 8);
   try {
     const r = await fetch('/api/poster', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ entityId: b.artist.selected.id, name: b.artist.selected.name, description: b.artist.selected.description || '', kind: S.input?.type || 'artist', genres: S.act?.genres || [], themes, cities: tourStops().map((s) => s.name) }) });
@@ -1780,7 +1814,7 @@ async function makePosterArt() {
     await drawPoster();
   } catch (e) {
     toast({ title: e.code === 'no_image_model' ? t('No image model on this server') : t('The artwork could not be made'), detail: e.code === 'no_image_model' ? t('The poster keeps its typographic version.') : t(e.message) });
-  } finally { S.posterBusy = false; btn.disabled = false; $('#posterBusy').hidden = true; }
+  } finally { S.posterBusy = false; btn.disabled = false; btn.querySelector('span').textContent = label; await stopDots(); $('#posterBusy').hidden = true; }
 }
 function sharePoster(share) {
   const slug = (S.book?.artist?.selected?.name || 'tour').toLowerCase().replace(/[^a-z0-9]+/g, '-');
@@ -1792,4 +1826,4 @@ function sharePoster(share) {
   }, 'image/png');
 }
 
-window.Tourbook = { S, UI, briefingText, run, startScan, stopScan }; // handy for debugging in the console
+window.Tourbook = { S, UI, briefingText, run, startScan, stopScan, startDots }; // handy for debugging in the console
