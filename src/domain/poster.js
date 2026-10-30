@@ -62,7 +62,7 @@ async function artDirection(llm, { name, kind, genres, description, themes }) {
     const r = await llm.chat({
       json: true,
       messages: [
-        { role: 'system', content: 'You are the creative director of a top contemporary design studio (the level of A24 key art, Apple Music editorial artwork, modern festival campaigns, Swiss / international typographic style). Return JSON only: {"style": string, "palette": string, "motifs": string, "mood": string, "layout": string, "typography": string, "photo_treatment": string}. Design a modern, premium, high-end tour poster for this act: bold contemporary typography (grotesk, neo-grotesk, condensed or refined serif display), a strong grid, generous negative space, confident colour, real photographic power. Pick ONE of these modern approaches, whichever fits the act best, and make it specific: (a) full-bleed photo with a duotone or gradient-map treatment and oversized type; (b) giant headline with the act standing in front of it (type behind the subject); (c) the act cut out on a single bold colour field with sharp editorial type; (d) magazine-cover editorial layout; (e) mostly typographic poster with a narrow photo strip; (f) high-contrast black-and-white photo with one accent colour and grain. FORBIDDEN: ornaments, baroque, filigree, crowns, laurels, arches, frames, ovals, medallions, watercolour washes, smudges, clip-art, fantasy, vintage pastiche, kitsch. photo_treatment must keep the supplied real photograph of the act and never redraw or change the face; no other people. Choose the palette from the act itself, not orange by default.' },
+        { role: 'system', content: 'You are the creative director of a top contemporary design studio (the level of A24 key art, Apple Music editorial artwork, modern festival campaigns, Swiss / international typographic style). Return JSON only: {"style": string, "palette": string, "motifs": string, "mood": string, "layout": string, "typography": string, "photo_treatment": string}. Design a modern, premium, high-end CONCERT TOUR poster for this act, one that anyone recognises as a tour poster at a glance (the tour label and the tour-date block are central to the composition, as on real tour posters): bold contemporary typography (grotesk, neo-grotesk, condensed or refined serif display), a strong grid, generous negative space, confident colour, real photographic power. Pick ONE of these modern approaches, whichever fits the act best, and make it specific: (a) full-bleed photo with a duotone or gradient-map treatment and oversized type; (b) giant headline with the act standing in front of it (type behind the subject); (c) the act cut out on a single bold colour field with sharp editorial type; (d) magazine-cover editorial layout; (e) mostly typographic poster with a narrow photo strip; (f) high-contrast black-and-white photo with one accent colour and grain. FORBIDDEN: ornaments, baroque, filigree, crowns, laurels, arches, frames, ovals, medallions, watercolour washes, smudges, clip-art, fantasy, vintage pastiche, kitsch. photo_treatment must keep the supplied real photograph of the act and never redraw or change the face; no other people. Choose the palette from the act itself, not orange by default.' },
         { role: 'user', content: JSON.stringify({ act: name, kind, genres, about: description, audience_tastes: themes.slice(0, 8), suggested_style: base.style }) },
       ],
     });
@@ -86,7 +86,7 @@ export function posterPrompt(dir) {
 
 // The whole poster designed by the image model (owner, 30 Oct: "the text and the photo are always laid out the same").
 // The exact text is given word for word and checked afterwards; the real photo is passed in and must not be redrawn.
-function fullPosterPrompt(dir, { name, lines, footer, hasPhoto }) {
+function fullPosterPrompt(dir, { name, lines, footer, hasPhoto, tourLabel, tickets }) {
   return [
     'Design a complete, print-ready concert tour poster, portrait 4:5. It must look modern, premium and high-end, like the work of a top contemporary design studio: bold contemporary typography, strong grid, generous negative space, confident colour, crisp print finish. No template: every decision serves this specific act.',
     'Never use ornaments, baroque details, crowns, laurels, arches, frames, ovals, medallions, watercolour washes, clip-art or vintage pastiche.',
@@ -95,9 +95,12 @@ function fullPosterPrompt(dir, { name, lines, footer, hasPhoto }) {
     dir.layout ? `Layout: ${dir.layout}.` : 'Layout: an original, bold composition specific to this act.',
     dir.typography ? `Typography: ${dir.typography}.` : '',
     hasPhoto ? `The attached image is the real photograph of ${name}. Integrate it into the design${dir.photo ? ` (${dir.photo})` : ''}. Keep the people in it exactly as photographed: do not redraw, restyle, replace or add any face or person.` : 'No people, no faces.',
+    'It must read instantly as a concert TOUR poster: the tour label large and prominent near the name, and the stops set as the classic tour-date block (one stop per line, like the date list on a real tour poster).',
     'Render this text exactly, spelled exactly as written, and no other words, letters or numbers anywhere:',
     `- headline: "${name}" (the full name, exactly; never shortened)`,
+    `- tour label, large: "${tourLabel}"`,
     `- the tour stops, in this order, one per line: ${lines.map((l) => `"${l}"`).join(', ')}`,
+    `- ticket line: "${tickets}"`,
     `- small footer: "${footer}"`,
     'All text must be sharp, legible and correctly spelled. No other text at all: no credits, no small print, no invented names, no dates, no logos, no brand names, no captions.',
   ].filter(Boolean).join('\n');
@@ -129,7 +132,7 @@ export const posterFile = (hash) => (/^[a-f0-9]{20}$/.test(hash) ? resolve(CACHE
 
 /** Returns { hash, cached, model } once the art exists on disk. Throws with a status when it cannot be made. */
 export async function posterArt({ entityId, name, description, kind, genres, themes, cities, stops = [], photo, lang = 'en', beforeGenerate, llm }) {
-  const hash = hashOf({ v: 5, entityId, kind, genres, themes, cities, stops, lang }); // one poster per act, tour and language
+  const hash = hashOf({ v: 6, entityId, kind, genres, themes, cities, stops, lang }); // one poster per act, tour and language
   const file = posterFile(hash);
   if (existsSync(file)) return { hash, cached: true, model: null, full: true };
   const key = imageKey(); const model = await imageModel();
@@ -139,11 +142,13 @@ export async function posterArt({ entityId, name, description, kind, genres, the
   const dir = await artDirection(llm, { name, kind, genres, description, themes });
   const lines = (stops.length ? stops : cities).map((c, i) => `${String(i + 1).padStart(2, '0')}  ${c}`);
   const footer = lang === 'fr' ? 'Tracée selon le goût avec Qloo' : 'Routed by taste with Qloo';
+  const tourLabel = lang === 'fr' ? 'TOURNÉE NORD-AMÉRICAINE' : 'NORTH AMERICAN TOUR';
+  const tickets = lang === 'fr' ? 'Billetterie bientôt' : 'Tickets soon';
   let photoPart = null;
   if (/^[0-9A-F-]{36}$/i.test(photo || '')) {
     try { const pr = await fetch(`https://images.qloo.com/i/${photo}-1080x-auto.jpg`, { signal: AbortSignal.timeout(15000) }); if (pr.ok) photoPart = { inlineData: { mimeType: 'image/jpeg', data: Buffer.from(await pr.arrayBuffer()).toString('base64') } }; } catch { /* no photo: the poster is designed without it */ }
   }
-  const prompt = fullPosterPrompt(dir, { name, lines, footer, hasPhoto: !!photoPart });
+  const prompt = fullPosterPrompt(dir, { name, lines, footer, hasPhoto: !!photoPart, tourLabel, tickets });
   const paint = async () => {
     const r = await fetch(`${API}/models/${model}:generateContent`, {
       method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
@@ -158,8 +163,8 @@ export async function posterArt({ entityId, name, description, kind, genres, the
   };
   // paint, proofread the text, paint once more if a word is wrong
   let b64 = await paint();
-  let check = await checkText(llm, b64, [name, ...lines, footer]);
-  for (let tries = 0; !check.ok && tries < 2; tries++) { const again = await paint(); const c2 = await checkText(llm, again, [name, ...lines, footer]); const score = (c) => (c.missing?.length || 0) * 3 + (c.extra?.length || 0); if (c2.ok || c2.skipped || score(c2) < score(check)) { b64 = again; check = c2; } }
+  let check = await checkText(llm, b64, [name, tourLabel, ...lines, tickets, footer]);
+  for (let tries = 0; !check.ok && tries < 2; tries++) { const again = await paint(); const c2 = await checkText(llm, again, [name, tourLabel, ...lines, tickets, footer]); const score = (c) => (c.missing?.length || 0) * 3 + (c.extra?.length || 0); if (c2.ok || c2.skipped || score(c2) < score(check)) { b64 = again; check = c2; } }
   mkdirSync(CACHE, { recursive: true });
   writeFileSync(file, Buffer.from(b64, 'base64'));
   return { hash, cached: false, model, full: true, direction: dir, proofread: check };

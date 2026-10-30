@@ -208,7 +208,7 @@ app.get('/api/poster/status', wrap(async (req, res) => res.json({ model: await i
 app.post('/api/poster', wrap(async (req, res) => {
   const b = req.body || {};
   const clean = (a, n) => (Array.isArray(a) ? a : []).map((x) => String(x).replace(/[^\p{L}\p{N} &'’.,-]/gu, '').trim().slice(0, 40)).filter(Boolean).slice(0, n);
-  const input = { entityId: String(b.entityId || '').slice(0, 64), name: String(b.name || '').slice(0, 120), description: String(b.description || '').slice(0, 300), kind: ['artist', 'person', 'podcast'].includes(b.kind) ? b.kind : 'artist', genres: clean(b.genres, 5), themes: clean(b.themes, 8), cities: clean(b.cities, 10), stops: clean(b.stops, 10), photo: /^[0-9A-F-]{36}$/i.test(String(b.photo || '')) ? String(b.photo) : null, lang: b.lang === 'fr' ? 'fr' : 'en' };
+  const input = { entityId: String(b.entityId || '').slice(0, 64), name: String(b.name || '').slice(0, 120), description: String(b.description || '').slice(0, 300), kind: ['artist', 'person', 'podcast'].includes(b.kind) ? b.kind : 'artist', genres: clean(b.genres, 5), themes: clean(b.themes, 8), cities: clean(b.cities, 10), stops: (Array.isArray(b.stops) ? b.stops : []).map((x) => String(x).replace(/[^\p{L}\p{N} &'’.,·-]/gu, '').trim().slice(0, 70)).filter(Boolean).slice(0, 10), photo: /^[0-9A-F-]{36}$/i.test(String(b.photo || '')) ? String(b.photo) : null, lang: b.lang === 'fr' ? 'fr' : 'en' };
   if (!input.entityId || !input.cities.length) return res.status(400).json({ error: 'A validated tour is required.' });
   // Caps (a click costs an image): per address and per day for the whole server. A poster already made costs nothing.
   const day = new Date().toISOString().slice(0, 10);

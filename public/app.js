@@ -1887,7 +1887,7 @@ async function makePosterArt() {
   $('#posterBusy').hidden = false; $('#posterBusyText').textContent = t('Artwork for {name}', { name: b.artist.selected.name }); startDots();
   const themes = [...new Set((b.dates || []).flatMap((d) => (d.crowd_brief?.themes || []).map((x) => x.name)))].slice(0, 8);
   try {
-    const r = await fetch('/api/poster', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ entityId: b.artist.selected.id, name: b.artist.selected.name, description: b.artist.selected.description || '', kind: S.input?.type || 'artist', genres: S.act?.genres || [], themes, cities: tourStops().map((s) => s.name), stops: tourStops().map((s) => `${s.name}, ${s.state}`), photo: S.act?.photo || b.artist.selected.photo || null, lang: LANG }) });
+    const r = await fetch('/api/poster', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ entityId: b.artist.selected.id, name: b.artist.selected.name, description: b.artist.selected.description || '', kind: S.input?.type || 'artist', genres: S.act?.genres || [], themes, cities: tourStops().map((s) => s.name), stops: tourStops().map((s) => { const v = (b.dates || []).find((d) => d.market?.id === s.id)?.venue?.picks?.[0]?.name; return `${s.name}, ${s.state}${v ? ` · ${v}` : ''}`; }), photo: S.act?.photo || b.artist.selected.photo || null, lang: LANG }) });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw Object.assign(new Error(j.error || `HTTP ${r.status}`), { code: j.code });
     S.posterArt = j.url; S.posterFull = !!j.full; btn.hidden = true; if (isSaved()) saveTour({ quiet: true });
