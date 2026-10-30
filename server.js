@@ -115,11 +115,25 @@ const traced = (fn) => wrap(async (req, res) => {
   res.json({ ...out, calls });
 });
 
+// Live suggestions call this on every pause in typing: a generous cap per address protects the Qloo quota.
+const lookups = new Map();
+app.use(['/api/resolve', '/api/act'], (req, res, next) => {
+  const key = `${new Date().toISOString().slice(0, 10)}:${req.ip}`; const n = (lookups.get(key) || 0) + 1;
+  if (n > 400) return res.status(429).json({ error: 'Daily search limit reached for this address.' });
+  lookups.set(key, n); if (lookups.size > 5000) lookups.clear(); next();
+});
 app.get('/api/resolve', traced(async (req) => {
   const type = { artist: 'urn:entity:artist', person: 'urn:entity:person', podcast: 'urn:entity:podcast' }[req.query.type] || 'urn:entity:artist';
   const { body, provenance } = await qloo.search({ query: String(req.query.q || '').slice(0, 120), types: type, take: 5 });
   const list = Array.isArray(body?.results) ? body.results : body?.results?.entities || [];
-  return { candidates: list.map((e) => ({ id: e.entity_id || e.id, name: e.name, type: e.subtype || e.types?.[0], popularity: e.popularity })), provenance };
+  return {
+    candidates: list.map((e) => ({
+      id: e.entity_id || e.id, name: e.name, type: e.subtype || e.types?.[0], popularity: e.popularity,
+      photo: /^https:\/\/images\.qloo\.com\/i\/([0-9A-F-]{36})-/i.exec(e?.properties?.image?.url || '')?.[1] || null,
+      description: e?.properties?.short_description || null, born: e?.properties?.date_of_birth || null,
+    })),
+    provenance,
+  };
 }));
 
 app.get('/api/markets', traced(async (req) => {

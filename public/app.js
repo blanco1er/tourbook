@@ -106,6 +106,9 @@ function bindUi() {
   });
   $('#planForm').addEventListener('submit', (e) => { e.preventDefault(); submitPlanForm(); });
   $('#fArtist').addEventListener('input', () => { $('#fArtist').removeAttribute('aria-invalid'); $('#fArtistErr').hidden = true; });
+  attachSuggest($('#fArtist'), $('#fArtistSugg'), { head: true });
+  ['p1', 'p2', 'p3'].forEach((n) => attachSuggest($(`#planForm [name=${n}]`), $(`#planForm [data-sugg-for=${n}]`), { head: false }));
+  $('#fType').addEventListener('change', () => { const i = $('#fArtist'); if (i.value.trim().length >= 2 && i.dataset.pick !== i.value.trim()) i.dispatchEvent(new Event('input')); });
   $('#planToggle').addEventListener('change', (e) => setPlan(e.target.value));
   $('#compareFlip').addEventListener('click', () => { setPlan(S.plan === 'qloo' ? 'llm' : 'qloo'); $('#mapwrap').scrollIntoView({ behavior: reduceMotion() ? 'auto' : 'smooth', block: 'center' }); });
   $('#marketsMore').addEventListener('click', () => {
@@ -207,11 +210,13 @@ function submitPlanForm() {
   if (!artist) { $('#fArtist').setAttribute('aria-invalid', 'true'); $('#fArtistErr').hidden = false; $('#fArtist').focus(); return; }
   const proxies = ['p1', 'p2', 'p3'].map((n) => $(`#planForm [name=${n}]`).value.trim()).filter(Boolean);
   const type = $('#fType input:checked')?.value || 'artist';
+  const artistId = $('#fArtist').dataset.pick === artist ? $('#fArtist').dataset.id : undefined; // the act picked in the live list
   closeSheet('sheet-plan', 'run');
-  run({ artist, proxies, type });
+  run({ artist, proxies, type, ...(artistId ? { artistId } : {}) });
 }
 function fillForm(input) {
-  $('#fArtist').value = input.artist;
+  $('#fArtist').value = input.artist; $('#fArtist').dataset.pick = input.artistId ? input.artist : ''; $('#fArtist').dataset.id = input.artistId || '';
+  $$('#planForm .sugg').forEach((u) => { u.hidden = true; u.innerHTML = ''; }); $('#proxyBox')?.classList.remove('is-callout');
   ['p1', 'p2', 'p3'].forEach((n, k) => { $(`#planForm [name=${n}]`).value = input.proxies[k] || ''; });
   const r = $(`#fType input[value="${input.type}"]`) || $('#fType input');
   r.checked = true; r.dispatchEvent(new Event('change', { bubbles: true }));
@@ -1590,6 +1595,49 @@ function openWho() {
 }
 function updateAvatar() { const show = !!S.actPhoto && S.view === 'plan' && !!(S.running || S.book); $('#tbAvatar').hidden = !show || !$('#tbAvatar').complete; $('#toolbar').classList.toggle('has-avatar', show); }
 
+// ---------------- live suggestions in the new-plan form (owner, 30 Oct) ----------------
+// As you type, Qloo's matches show with their photo, so a tour never starts on the wrong act. Nothing on Qloo for
+// that name: the form says so and points to the three sound-alikes, which have the same live list.
+const suggCache = new Map();
+function attachSuggest(input, list, { head }) {
+  let timer = 0, seq = 0;
+  const close = () => { list.hidden = true; list.innerHTML = ''; };
+  const row = (c, i) => `<li role="option"><button type="button" class="sugg-row" data-i="${i}">${c.photo ? `<img src="/api/photo/${c.photo}" alt="" loading="lazy">` : `<span class="sugg-ph">${esc((c.name || '?').slice(0, 1))}</span>`}<span class="sugg-txt"><b>${esc(c.name)}</b>${c.description || c.born ? `<small>${esc([c.born ? t('{n} years old', { n: yearsOld(c.born) }) : '', c.description || ''].filter(Boolean).join(' · '))}</small>` : ''}</span></button></li>`;
+  input.addEventListener('input', () => {
+    const q = input.value.trim(); clearTimeout(timer);
+    if (input.dataset.pick && input.dataset.pick !== q) { input.dataset.pick = ''; input.dataset.id = ''; input.closest('.ui-field, .proxies')?.querySelector(`.sugg-ok[data-for="${input.name}"]`)?.remove(); }
+    if (q.length < 2) { close(); return; }
+    timer = setTimeout(async () => {
+      const type = $('#fType input:checked')?.value || 'artist'; const key = `${type}|${q.toLowerCase()}`; const my = ++seq;
+      list.hidden = false; if (!suggCache.has(key)) list.innerHTML = `<li class="sugg-wait"><span class="live-dot"></span>${t('Searching Qloo…')}</li>`;
+      let cands = suggCache.get(key);
+      if (!cands) {
+        try { const r = await fetch(`/api/resolve?q=${encodeURIComponent(q)}&type=${type}`); cands = r.ok ? ((await r.json()).candidates || []).slice(0, 5) : []; } catch { cands = []; }
+        suggCache.set(key, cands);
+      }
+      if (my !== seq || input.value.trim() !== q) return;
+      list._cands = cands;
+      // Qloo's search is fuzzy: it always returns something. "Found" means a name that really matches what was typed.
+      const norm = (v) => String(v || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+      const nq = norm(q); const found = cands.some((c) => { const n = norm(c.name); return n.startsWith(nq) || nq.startsWith(n) || (nq.length >= 4 && n.includes(nq)); });
+      const none = `<li class="sugg-none">${head ? `<b>${t('Not on Qloo yet')}</b><span>${t('Tourbook can still plan it: add three acts that sound like it below, they stand in for the audience.')}</span><button type="button" class="sugg-go">${t('Add sound-alikes')}</button>` : `<span>${t('No match on Qloo for this name.')}</span>`}</li>`;
+      list.innerHTML = found ? cands.map(row).join('') : `${none}${cands.length ? `<li class="sugg-maybe">${t('Close names on Qloo')}</li>${cands.slice(0, 3).map(row).join('')}` : ''}`;
+    }, 280);
+  });
+  list.addEventListener('click', (e) => {
+    if (e.target.closest('.sugg-go')) { close(); $('#proxyBox')?.classList.add('is-callout'); $('#planForm [name=p1]').focus(); return; }
+    const b = e.target.closest('.sugg-row'); if (!b) return;
+    const c = list._cands[Number(b.dataset.i)];
+    input.value = c.name; input.dataset.pick = c.name; input.dataset.id = c.id;
+    close();
+    // a confirmation row under the field: photo, name, who it is
+    input.parentElement.querySelector(`.sugg-ok[data-for="${input.name}"]`)?.remove();
+    input.insertAdjacentHTML('afterend', `<div class="sugg-ok" data-for="${input.name}">${c.photo ? `<img src="/api/photo/${c.photo}" alt="">` : ''}<span>${icon('i-check')}<b>${esc(c.name)}</b>${c.description ? ` · ${esc(c.description)}` : ''}</span></div>`);
+    if (head) { $('#proxyBox')?.classList.remove('is-callout'); }
+  });
+  input.addEventListener('blur', () => setTimeout(() => { if (!list.contains(document.activeElement)) close(); }, 200));
+}
+
 // ---------------- tour poster (30 Oct) ----------------
 // "Validate the tour" opens the poster: the layout (real Qloo photo, cities, route) is drawn at once and costs nothing;
 // the AI artwork is painted only when asked, once per tour, then kept by the server.
@@ -1656,16 +1704,17 @@ async function drawPoster() {
   // kicker and name
   x.fillStyle = '#FF8A4C'; x.font = `700 30px ${font}`; x.textBaseline = 'alphabetic';
   if ('letterSpacing' in x) x.letterSpacing = '6px';
-  x.fillText(t('THE TASTE TOUR').toUpperCase(), 72, 492);
-  if ('letterSpacing' in x) x.letterSpacing = '0px';
   let size = 140; x.font = `800 ${size}px ${font}`;
   const words = name.split(' '); let lines = [name];
   while (x.measureText(name).width > W - 144 && size > 96) { size -= 4; x.font = `800 ${size}px ${font}`; }
   if (x.measureText(name).width > W - 144) { const mid = Math.ceil(words.length / 2); lines = [words.slice(0, mid).join(' '), words.slice(mid).join(' ')]; }
-  x.fillStyle = '#FFFFFF'; lines.forEach((l, i) => x.fillText(l, 68, 600 + i * size * 0.95));
+  x.font = `700 30px ${font}`; x.fillStyle = '#FF8A4C';
+  x.fillText(t('THE TASTE TOUR').toUpperCase(), 72, 600 - size * 0.78 - 26); // above the cap height of the name, never touching it
+  if ('letterSpacing' in x) x.letterSpacing = '0px';
+  x.font = `800 ${size}px ${font}`; x.fillStyle = '#FFFFFF'; lines.forEach((l, i) => x.fillText(l, 68, 600 + i * size * 0.95));
   // the stops, numbered, in one or two columns
   const yStart = 600 + (lines.length - 1) * size * 0.95 + 96; const two = stops.length > 5;
-  const per = two ? Math.ceil(stops.length / 2) : stops.length; const rowH = Math.min(84, (H - 150 - yStart) / per);
+  const per = two ? Math.ceil(stops.length / 2) : stops.length; const rowH = Math.min(104, (H - 170 - yStart) / per);
   stops.forEach((s, i) => {
     const col = two && i >= per ? 1 : 0; const X = 72 + col * 488; const Y = yStart + (i - col * per) * rowH;
     x.fillStyle = '#FF8A4C'; x.font = `700 28px ${font}`; x.fillText(String(i + 1).padStart(2, '0'), X, Y);

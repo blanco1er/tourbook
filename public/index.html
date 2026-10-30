@@ -341,22 +341,26 @@
       <button class="ui-button ui-button--prominent ui-button--sm" type="submit" id="runBtn">Build</button>
     </div>
     <div class="ui-sheet__body form-body">
-      <div class="ui-field">
-        <label class="ui-field__label" for="fArtist">Headliner</label>
-        <input class="ui-input" id="fArtist" name="artist" placeholder="Artist, comedian or podcast" required maxlength="120" enterkeyhint="go" autocapitalize="words" aria-describedby="fArtistErr">
-        <p class="ui-field__error" id="fArtistErr" hidden>Type a headliner, or run one of the demo acts.</p>
-      </div>
       <fieldset class="ui-segmented ui-segmented--lg act-type" id="fType" aria-label="Act type">
         <label><input type="radio" name="type" value="artist" checked>Music</label>
         <label><input type="radio" name="type" value="person">Comedy</label>
         <label><input type="radio" name="type" value="podcast">Podcast</label>
       </fieldset>
       <div class="ui-field">
+        <label class="ui-field__label" for="fArtist">Headliner</label>
+        <input class="ui-input" id="fArtist" name="artist" placeholder="Artist, comedian or podcast" required maxlength="120" enterkeyhint="go" autocapitalize="words" autocomplete="off" spellcheck="false" aria-describedby="fArtistErr" aria-autocomplete="list" aria-controls="fArtistSugg">
+        <ul class="sugg" id="fArtistSugg" role="listbox" aria-label="Matches on Qloo" hidden></ul>
+        <p class="ui-field__error" id="fArtistErr" hidden>Type a headliner, or run one of the demo acts.</p>
+      </div>
+      <div class="ui-field">
         <span class="ui-field__label" id="proxyLabel">Sounds like (optional)</span>
-        <div class="proxies" role="group" aria-labelledby="proxyLabel">
-          <input class="ui-input" name="p1" placeholder="Similar act" aria-label="Similar act 1" maxlength="120" autocapitalize="words">
-          <input class="ui-input" name="p2" placeholder="Another one" aria-label="Similar act 2" maxlength="120" autocapitalize="words">
-          <input class="ui-input" name="p3" placeholder="And a third" aria-label="Similar act 3" maxlength="120" autocapitalize="words" enterkeyhint="go">
+        <div class="proxies" id="proxyBox" role="group" aria-labelledby="proxyLabel">
+          <input class="ui-input" name="p1" placeholder="Similar act" aria-label="Similar act 1" maxlength="120" autocapitalize="words" autocomplete="off" spellcheck="false">
+          <ul class="sugg" data-sugg-for="p1" role="listbox" hidden></ul>
+          <input class="ui-input" name="p2" placeholder="Another one" aria-label="Similar act 2" maxlength="120" autocapitalize="words" autocomplete="off" spellcheck="false">
+          <ul class="sugg" data-sugg-for="p2" role="listbox" hidden></ul>
+          <input class="ui-input" name="p3" placeholder="And a third" aria-label="Similar act 3" maxlength="120" autocapitalize="words" enterkeyhint="go" autocomplete="off" spellcheck="false">
+          <ul class="sugg" data-sugg-for="p3" role="listbox" hidden></ul>
         </div>
         <p class="ui-field__hint">Too small for the taste graph? Three sound-alikes stand in for your audience.</p>
       </div>
