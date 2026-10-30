@@ -1,7 +1,6 @@
 // Tourbook server: Express API + static single-page frontend.
 // The browser never talks to Qloo or the LLM directly: keys stay server-side (kit rule).
 import express from 'express';
-import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { config } from './src/config.js';
@@ -15,7 +14,7 @@ import { venueMode } from './src/domain/venue.js';
 import { llmOnlyBaseline, compareWithQloo } from './src/domain/baseline.js';
 import { CITIES, CITY_BY_ID } from './src/data/cities.js';
 import { askTourbook } from './src/agent/ask.js';
-import { posterArt, readPoster, imageModel } from './src/domain/poster.js';
+import { posterArt, readPoster, imageModel, posterKey } from './src/domain/poster.js';
 import { DEMO_ARTISTS, NEIGHBORHOOD_SUGGESTIONS } from './src/data/fixtures.js';
 import { LIVE_DEMOS } from './src/data/demos.js';
 
@@ -220,7 +219,11 @@ app.post('/api/poster', wrap(async (req, res) => {
     if (postersToday.n >= POSTERS_PER_DAY) throw Object.assign(new Error('Daily poster limit reached on this server.'), { status: 429 });
   };
   // A job the page polls: it reports the real stage, and it survives the iPhone pausing the page mid-way.
-  const id = randomUUID(); const job = { stage: 'start', at: Date.now() }; posterJobs.set(id, job);
+  // The job id is the poster's own key: a repeated request joins the job in flight, a finished poster answers at once.
+  const id = posterKey(input);
+  if (readPoster(id)) return res.status(202).json({ job: id });
+  if (posterJobs.has(id) && !['error'].includes(posterJobs.get(id).stage)) return res.status(202).json({ job: id });
+  const job = { stage: 'start', at: Date.now() }; posterJobs.set(id, job);
   posterArt({ ...input, beforeGenerate: reserve, llm, onStage: (stage) => { job.stage = stage; job.stageAt = Date.now(); } })
     .then((out) => {
       if (!out.cached) { posters.set(key, (posters.get(key) || 0) + 1); postersToday.n++; if (posters.size > 5000) posters.clear(); }
@@ -232,7 +235,11 @@ app.post('/api/poster', wrap(async (req, res) => {
 }));
 app.get('/api/poster/job/:id', (req, res) => {
   const j = posterJobs.get(req.params.id);
-  if (!j) return res.status(404).json({ error: 'Unknown poster job.' });
+  if (!j) {
+    // the server restarted since: a finished poster is still on disk; otherwise the page asks again
+    if (readPoster(req.params.id)) return res.json({ stage: 'done', url: `/api/poster/${req.params.id}.png`, cached: true, full: true, band: true });
+    return res.status(404).json({ error: 'Unknown poster job.', code: 'job_lost' });
+  }
   res.json({ stage: j.stage, stageMs: Date.now() - (j.stageAt || j.at), ...(j.result || {}), ...(j.stage === 'error' ? { error: j.error, code: j.code, status: j.status } : {}) });
 });
 app.get('/api/poster/:hash.png', (req, res) => {

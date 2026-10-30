@@ -122,12 +122,13 @@ async function checkText(llm, b64, expected) {
   } catch { return { ok: true, skipped: true }; }
 }
 
+export const posterKey = ({ entityId, kind, genres, themes, cities, stops = [], lang = 'en' }) => hashOf({ v: 9, entityId, kind, genres, themes, cities, stops, lang });
 const hashOf = (o) => createHash('sha1').update(JSON.stringify(o)).digest('hex').slice(0, 20);
 export const posterFile = (hash) => (/^[a-f0-9]{20}$/.test(hash) ? resolve(CACHE, `${hash}.png`) : null);
 
 /** Returns { hash, cached, model } once the art exists on disk. Throws with a status when it cannot be made. */
 export async function posterArt({ entityId, name, description, kind, genres, themes, cities, stops = [], photo, lang = 'en', beforeGenerate, llm, onStage = () => {} }) {
-  const hash = hashOf({ v: 9, entityId, kind, genres, themes, cities, stops, lang }); // one poster per act, tour and language
+  const hash = posterKey({ entityId, kind, genres, themes, cities, stops, lang }); // one poster per act, tour and language
   const file = posterFile(hash);
   if (existsSync(file)) { let direction = null; try { direction = JSON.parse(readFileSync(file.replace(/\.png$/, '.json'), 'utf8')).direction; } catch { /* older poster */ } return { hash, cached: true, model: null, full: true, band: true, direction }; }
   const key = imageKey(); const model = await imageModel();

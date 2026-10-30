@@ -263,7 +263,7 @@ function run(input, { rid, keepView = false, demoIndex, resume = false } = {}) {
   if (S.running) { toast({ title: t('Already planning'), detail: t('{artist} is still running. One plan at a time.', { artist: S.input?.artist }) }); return; }
   S.running = true;
   S.rid = rid || newRid(); S.retryRid = null;
-  S.es?.close(); S.book = null; S.dossiers = {}; setActPhoto(null); S.actShown = false; $('#actId').hidden = true; S.validated = false; S.posterArt = null; S.posterFull = false; S.posterBand = false; S.posterDir = null; S.act = null; updateValidate(); S.calls = []; S.tools = 0; S.trace = []; S.input = input; S.liveTop = null; S.heat = null; S.curTool = null; S.plan = 'qloo';
+  S.es?.close(); S.book = null; S.dossiers = {}; setActPhoto(null); S.actShown = false; $('#actId').hidden = true; S.validated = false; S.posterImg = null; S.posterArt = null; S.posterFull = false; S.posterBand = false; S.posterDir = null; S.act = null; updateValidate(); S.calls = []; S.tools = 0; S.trace = []; S.input = input; S.liveTop = null; S.heat = null; S.curTool = null; S.plan = 'qloo';
   fillForm(input);
   stopVoice(); if ($('#sheet-dossier').open) closeSheet('sheet-dossier');
   setBusy(true, demoIndex ?? S.cfg.demos.findIndex((d) => d.artist === input.artist));
@@ -398,7 +398,7 @@ function isSaved() { const id = savedId(); return !!id && readSaved().some((x) =
 function saveTour({ quiet = false } = {}) {
   if (!S.book) return;
   const b = S.book; const id = savedId(b);
-  const entry = { id, savedAt: Date.now(), lang: LANG, name: b.artist?.selected?.name || S.input?.artist, photo: b.artist?.selected?.photo || null, type: S.input?.type || 'artist', stops: b.markets?.top?.length || 0, lead: b.markets?.top?.[0]?.name || '', params: shareParams(), input: S.input, book: b, trace: S.trace, poster: S.posterArt || null, posterFull: !!S.posterFull, posterBand: !!S.posterBand, posterDir: S.posterDir || null };
+  const entry = { id, savedAt: Date.now(), lang: LANG, name: b.artist?.selected?.name || S.input?.artist, photo: b.artist?.selected?.photo || null, type: S.input?.type || 'artist', stops: b.markets?.top?.length || 0, lead: b.markets?.top?.[0]?.name || '', params: shareParams(), input: S.input, book: b, trace: S.trace, poster: S.posterArt || null, posterImg: S.posterImg || null, posterFull: !!S.posterFull, posterBand: !!S.posterBand, posterDir: S.posterDir || null };
   const list = [entry, ...readSaved().filter((x) => x.id !== id)].slice(0, 12);
   const ok = writeSaved(list);
   updateSaveBtn(); renderSaved();
@@ -436,7 +436,7 @@ function openSaved(id) {
   const x = readSaved().find((y) => y.id === id); if (!x?.book?.markets) return;
   S.es?.close(); S.running = false;
   S.input = x.input; S.book = x.book; S.trace = x.trace || []; S.calls = []; S.tools = 0; S.curTool = null; S.plan = 'qloo';
-  S.posterArt = x.poster || null; S.posterFull = !!x.posterFull; S.posterBand = !!x.posterBand; S.posterDir = x.posterDir || null; S.validated = !!x.poster; S.act = null;
+  S.posterImg = x.posterImg || null; S.posterArt = x.poster || null; S.posterFull = !!x.posterFull; S.posterBand = !!x.posterBand; S.posterDir = x.posterDir || null; S.validated = !!x.poster; S.act = null;
   fillForm(S.input); resetAgentView();
   for (const [type, d] of S.trace) {
     if (type === 'thought') agentLine({ kind: 'thought', text: d.text });
@@ -470,7 +470,7 @@ function restoreSession() {
 function goHome() {
   if (S.running) return;
   stopVoice(); if ($('#sheet-dossier').open) closeSheet('sheet-dossier');
-  S.book = null; S.input = null; S.trace = []; S.calls = []; S.tools = 0; S.plan = 'qloo'; S.liveTop = null; S.heat = null; setActPhoto(null); $('#actId').hidden = true; S.validated = false; S.posterArt = null; S.posterFull = false; S.posterBand = false; S.posterDir = null; S.act = null; updateValidate();
+  S.book = null; S.input = null; S.trace = []; S.calls = []; S.tools = 0; S.plan = 'qloo'; S.liveTop = null; S.heat = null; setActPhoto(null); $('#actId').hidden = true; S.validated = false; S.posterImg = null; S.posterArt = null; S.posterFull = false; S.posterBand = false; S.posterDir = null; S.act = null; updateValidate();
   try { sessionStorage.removeItem(SESSION_KEY); } catch { /* storage blocked */ }
   clearPending();
   const v = $('#view-plan'); v.dataset.state = 'empty';
@@ -1877,7 +1877,10 @@ function drawDateBlock(x, W, H, stops, font, accent) {
   if ('letterSpacing' in x) x.letterSpacing = '0px';
   x.font = `500 22px ${font}`; x.fillStyle = 'rgba(255,255,255,.6)'; const f = t('Routed by taste with Qloo'); x.fillText(f, R - x.measureText(f).width, H - 84);
 }
+// a compact copy of the finished poster (JPEG), kept with a saved tour so it survives server restarts
+function posterSnapshot() { try { const c = $('#posterCanvas'); const o = document.createElement('canvas'); o.width = 720; o.height = 900; o.getContext('2d').drawImage(c, 0, 0, 720, 900); return o.toDataURL('image/jpeg', 0.82); } catch { return null; } }
 async function drawPoster() {
+  if (S.posterImg) { try { const im = await loadImg(S.posterImg); const x = $('#posterCanvas').getContext('2d'); x.clearRect(0, 0, 1080, 1350); x.drawImage(im, 0, 0, 1080, 1350); return; } catch { S.posterImg = null; } }
   const c = $('#posterCanvas'); const W = 1080, H = 1350; const x = c.getContext('2d');
   const font = getComputedStyle(document.documentElement).getPropertyValue('--font-display') || 'system-ui';
   const stops = tourStops(); const name = S.book.artist.selected.name;
@@ -1993,20 +1996,23 @@ async function makePosterArt() {
   $('#posterBusy').hidden = false; $('#posterBusyText').textContent = t('Artwork for {name}', { name: b.artist.selected.name }); startDots();
   const themes = [...new Set((b.dates || []).flatMap((d) => (d.crowd_brief?.themes || []).map((x) => x.name)))].slice(0, 8);
   try {
-    const r0 = await fetch('/api/poster', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ entityId: b.artist.selected.id, name: b.artist.selected.name, description: b.artist.selected.description || '', kind: S.input?.type || 'artist', genres: S.act?.genres || [], themes, cities: tourStops().map((s) => s.name), stops: tourStops().map((s) => { const v = (b.dates || []).find((d) => d.market?.id === s.id)?.venue?.picks?.[0]?.name; return `${s.name}, ${s.state}${v ? ` · ${v}` : ''}`; }), photo: S.act?.photo || b.artist.selected.photo || null, lang: LANG }) });
-    const j0 = await r0.json().catch(() => ({}));
-    if (!r0.ok) throw Object.assign(new Error(j0.error || `HTTP ${r0.status}`), { code: j0.code });
+    const body = JSON.stringify({ entityId: b.artist.selected.id, name: b.artist.selected.name, description: b.artist.selected.description || '', kind: S.input?.type || 'artist', genres: S.act?.genres || [], themes, cities: tourStops().map((s) => s.name), stops: tourStops().map((s) => { const v = (b.dates || []).find((d) => d.market?.id === s.id)?.venue?.picks?.[0]?.name; return `${s.name}, ${s.state}${v ? ` · ${v}` : ''}`; }), photo: S.act?.photo || b.artist.selected.photo || null, lang: LANG });
+    const start = async () => { const r0 = await fetch('/api/poster', { method: 'POST', headers: { 'content-type': 'application/json' }, body }); const j0 = await r0.json().catch(() => ({})); if (!r0.ok) throw Object.assign(new Error(j0.error || `HTTP ${r0.status}`), { code: j0.code }); return j0; };
+    let j0 = await start(); let relaunched = false;
     // poll the job: the real stage drives the caption and the percentage
     let j;
     for (;;) {
       await new Promise((ok) => setTimeout(ok, 1000));
-      const r = await fetch(`/api/poster/job/${j0.job}`); j = await r.json().catch(() => ({}));
+      const r = await fetch(`/api/poster/job/${j0.job}`).catch(() => null); j = r ? await r.json().catch(() => ({})) : {};
+      if (!r) continue; // network blip (page paused): poll again
+      if (r.status === 404 && j.code === 'job_lost' && !relaunched) { relaunched = true; j0 = await start(); continue; } // server restarted mid-way: ask once more, silently
       if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
       if (j.stage === 'error') throw Object.assign(new Error(j.error), { code: j.code });
       if (j.stage !== S.posterStage) { S.posterStage = j.stage; S.posterStageAt = performance.now() - (j.stageMs || 0); const cap = POSTER_STAGE[j.stage]; if (cap) $('#posterBusyText').textContent = t(cap.label); }
       if (j.stage === 'done') break;
     }
-    S.posterArt = j.url; S.posterFull = !!j.full; S.posterBand = !!j.band; S.posterDir = j.direction || null; btn.hidden = true; if (isSaved()) saveTour({ quiet: true });
+    S.posterImg = null; S.posterArt = j.url; S.posterFull = !!j.full; S.posterBand = !!j.band; S.posterDir = j.direction || null; btn.hidden = true;
+    await drawPoster(); S.posterImg = posterSnapshot(); if (isSaved()) saveTour({ quiet: true });
     await drawPoster();
   } catch (e) {
     toast({ title: e.code === 'no_image_model' ? t('No image model on this server') : t('The artwork could not be made'), detail: e.code === 'no_image_model' ? t('The poster keeps its typographic version.') : t(e.message) });
