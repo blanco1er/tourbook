@@ -14,6 +14,7 @@ import { venueMode } from './src/domain/venue.js';
 import { llmOnlyBaseline, compareWithQloo } from './src/domain/baseline.js';
 import { CITIES, CITY_BY_ID } from './src/data/cities.js';
 import { askTourbook } from './src/agent/ask.js';
+import { posterArt, readPoster, imageModel } from './src/domain/poster.js';
 import { DEMO_ARTISTS, NEIGHBORHOOD_SUGGESTIONS } from './src/data/fixtures.js';
 import { LIVE_DEMOS } from './src/data/demos.js';
 
@@ -57,7 +58,8 @@ const parseInput = (src) => {
   const proxies = Array.isArray(src.proxies) ? src.proxies : String(src.proxies || '').split(',');
   const type = ['artist', 'person', 'podcast'].includes(src.type) ? src.type : 'artist';
   const lang = src.lang === 'fr' ? 'fr' : 'en'; // UI language of the agent's text (thoughts, summary); tools and Qloo calls are unchanged
-  return { artist: String(src.artist || '').trim().slice(0, 120), proxies: proxies.map((p) => String(p).trim().slice(0, 120)).filter(Boolean).slice(0, 3), type, lang };
+  const artistId = /^[0-9A-F-]{36}$/i.test(String(src.artistId || '')) ? String(src.artistId) : undefined; // "Not them?": the act picked among homonyms
+  return { artist: String(src.artist || '').trim().slice(0, 120), proxies: proxies.map((p) => String(p).trim().slice(0, 120)).filter(Boolean).slice(0, 3), type, lang, ...(artistId ? { artistId } : {}) };
 };
 const ids = (s) => String(s || '').split(',').map((x) => x.trim()).filter(Boolean).slice(0, 4);
 const wrap = (fn) => (req, res) => fn(req, res).catch((e) => res.status(e.status && e.status < 500 ? e.status : 502).json({ error: e.message, code: e.code, details: e.attempts || e.details }));
@@ -162,6 +164,54 @@ app.post('/api/ask', traced(async (req) => {
   if (!plan.entityIds.length) throw Object.assign(new Error('The plan has no resolved act.'), { status: 400 });
   return askTourbook({ question, plan, lang: b.lang === 'fr' ? 'fr' : 'en', qloo, llm });
 }));
+
+// ---- Tour poster (30 Oct): the act's real photo and genres from Qloo, and AI artwork made only on request ----
+// The act's card: Qloo's own photo and genres (served through us so the page can draw it on a canvas).
+app.get('/api/act', traced(async (req) => {
+  const type = { artist: 'urn:entity:artist', person: 'urn:entity:person', podcast: 'urn:entity:podcast' }[req.query.type] || 'urn:entity:artist';
+  const { body } = await qloo.search({ query: String(req.query.q || '').slice(0, 120), types: type, take: 5 });
+  const list = Array.isArray(body?.results) ? body.results : body?.results?.entities || [];
+  const e = list.find((x) => (x.entity_id || x.id) === req.query.id) || list[0];
+  if (!e) return { act: null };
+  const img = e.properties?.image?.url || '';
+  const photo = /^https:\/\/images\.qloo\.com\/i\/([0-9A-F-]{36})-/i.exec(img)?.[1] || null;
+  const genres = [...new Set((Array.isArray(e.properties?.primary_genres) && e.properties.primary_genres.length ? e.properties.primary_genres : (e.tags || []).filter((t) => /genre/.test(t.type || t.id || '')).map((t) => t.name)))].slice(0, 5);
+  return { act: { id: e.entity_id || e.id, name: e.name, photo, genres } };
+}));
+// Qloo photo proxy: one host, one id shape, nothing else.
+app.get('/api/photo/:id', async (req, res) => {
+  if (!/^[0-9A-F-]{36}$/i.test(req.params.id)) return res.status(400).end();
+  try {
+    const r = await fetch(`https://images.qloo.com/i/${req.params.id}-1080x-auto.jpg`, { signal: AbortSignal.timeout(15000) });
+    if (!r.ok) return res.status(404).end();
+    res.set({ 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=86400' }).send(Buffer.from(await r.arrayBuffer()));
+  } catch { res.status(502).end(); }
+});
+const posters = new Map(); let postersToday = { day: '', n: 0 };
+const POSTERS_PER_IP = Number(process.env.POSTERS_PER_IP_PER_DAY || 4), POSTERS_PER_DAY = Number(process.env.POSTERS_PER_DAY || 50);
+app.get('/api/poster/status', wrap(async (req, res) => res.json({ model: await imageModel() })));
+app.post('/api/poster', wrap(async (req, res) => {
+  const b = req.body || {};
+  const clean = (a, n) => (Array.isArray(a) ? a : []).map((x) => String(x).replace(/[^\p{L}\p{N} &'’.,-]/gu, '').trim().slice(0, 40)).filter(Boolean).slice(0, n);
+  const input = { entityId: String(b.entityId || '').slice(0, 64), kind: ['artist', 'person', 'podcast'].includes(b.kind) ? b.kind : 'artist', genres: clean(b.genres, 5), themes: clean(b.themes, 8), cities: clean(b.cities, 10) };
+  if (!input.entityId || !input.cities.length) return res.status(400).json({ error: 'A validated tour is required.' });
+  // Caps (a click costs an image): per address and per day for the whole server. A poster already made costs nothing.
+  const day = new Date().toISOString().slice(0, 10);
+  if (postersToday.day !== day) postersToday = { day, n: 0 };
+  const key = `${day}:${req.ip}`;
+  const reserve = () => {
+    if ((posters.get(key) || 0) >= POSTERS_PER_IP) throw Object.assign(new Error('Daily poster limit reached for this address.'), { status: 429 });
+    if (postersToday.n >= POSTERS_PER_DAY) throw Object.assign(new Error('Daily poster limit reached on this server.'), { status: 429 });
+  };
+  const out = await posterArt({ ...input, beforeGenerate: reserve }).catch((e) => { throw e; });
+  if (!out.cached) { posters.set(key, (posters.get(key) || 0) + 1); postersToday.n++; if (posters.size > 5000) posters.clear(); }
+  res.json({ url: `/api/poster/${out.hash}.png`, cached: out.cached, model: out.model });
+}));
+app.get('/api/poster/:hash.png', (req, res) => {
+  const buf = readPoster(req.params.hash);
+  if (!buf) return res.status(404).end();
+  res.set({ 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=604800, immutable' }).send(buf);
+});
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
 

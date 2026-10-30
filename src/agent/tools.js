@@ -26,13 +26,18 @@ export const TOOLS = {
     async run({ name, type }, { qloo, state }) {
       const { body, provenance } = await qloo.search({ query: name, types: TYPE_URN[type], take: 5 });
       const raw = Array.isArray(body?.results) ? body.results : body?.results?.entities || [];
-      const cands = raw.map((e) => ({ id: e.entity_id || e.id, name: e.name, type: e.subtype || e.types?.[0] || TYPE_URN[type], popularity: e.popularity, description: e?.properties?.short_description, genreTags: genreTagsOf(e, type) }));
+      const cands = raw.map((e) => ({ id: e.entity_id || e.id, name: e.name, type: e.subtype || e.types?.[0] || TYPE_URN[type], popularity: e.popularity, description: e?.properties?.short_description, genreTags: genreTagsOf(e, type), photo: /^https:\/\/images\.qloo\.com\/i\/([0-9A-F-]{36})-/i.exec(e?.properties?.image?.url || '')?.[1] || null,
+        // identity, so a homonym is easy to spot (owner, 30 Oct)
+        born: e?.properties?.date_of_birth || null, since: e?.properties?.start_year || null, group: e?.properties?.is_group ?? null, from: e?.properties?.place_of_birth || null }));
       const exact = cands.filter((c) => c.name?.toLowerCase() === name.toLowerCase());
-      const selected = exact[0] || cands[0] || null;
+      // The user picked one act among homonyms ("Not them?"): that id wins for the headliner.
+      const isHead = name.trim().toLowerCase() === String(state.input?.artist || '').trim().toLowerCase();
+      const picked = isHead && state.input?.artistId ? cands.find((c) => c.id === state.input.artistId) : null;
+      const selected = picked || exact[0] || cands[0] || null;
       const full = { input: name, selected, match: exact.length === 1 ? 'exact' : selected ? 'best_guess' : 'not_found', candidates: cands, provenance };
       // Parallel resolves can finish in any order: the headliner always comes first.
       if (selected) { if (name.trim().toLowerCase() === String(state.input?.artist || '').trim().toLowerCase()) state.resolved.unshift(full); else state.resolved.push(full); }
-      return { full, forModel: { selected, match: full.match, candidates: cands.slice(0, 3).map(({ id, name: n }) => ({ id, name: n })) } };
+      return { full, forModel: { selected, match: picked ? 'exact' : full.match, candidates: cands.slice(0, 3).map(({ id, name: n }) => ({ id, name: n })) } };
     },
   },
   rank_markets: {

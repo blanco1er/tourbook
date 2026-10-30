@@ -1006,3 +1006,56 @@ button.live-head { width: 100%; padding: 0; border: 0; background: none; text-al
 .tb-home::after { content: ""; position: absolute; inset: -4px; }
 .tb-home .ui-icon { width: 20px; height: 20px; }
 .tb-home:active { transform: scale(.96); }
+
+/* ---- Validate the tour + poster (30 Oct) ---- */
+.tour-validate { display: flex; align-items: center; gap: 12px; margin: 12px 0 0; }
+.tour-validate .ui-button { flex: none; }
+.tour-validate__note { font: 13px/1.3 var(--font-sans); color: var(--label-secondary); }
+.poster-body { display: grid; gap: 16px; justify-items: center; }
+@media (min-width: 760px) { .poster-body { grid-template-columns: minmax(0, 1fr) 300px; align-items: start; justify-items: stretch; } }
+.poster-frame { position: relative; width: 100%; max-width: 440px; border-radius: 18px; overflow: hidden; box-shadow: 0 18px 50px rgba(0,0,0,.28), 0 0 0 0.5px rgba(0,0,0,.1); background: #0B0908; }
+.poster-frame canvas { display: block; width: 100%; height: auto; aspect-ratio: 4 / 5; }
+.poster-busy { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 12px; padding: 24px; text-align: center; color: #fff; background: rgba(11,9,8,.55); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.poster-busy .live-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--taste); animation: pulse 1.1s ease-in-out infinite; }
+.poster-busy b { font: var(--weight-semibold) 16px/1.35 var(--font-sans); max-width: 26ch; }
+.poster-actions { display: grid; gap: 10px; width: 100%; max-width: 440px; }
+.poster-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.poster-note { margin: 2px 2px 0; font: 13px/1.45 var(--font-sans); color: var(--label-secondary); }
+
+/* ---- The act's real photo next to its name (owner, 30 Oct) ---- */
+.tb-title { position: relative; }
+.tb-avatar { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; flex: none; box-shadow: 0 0 0 2px var(--bg-elevated), 0 4px 14px rgba(0,0,0,.18); }
+.tb-avatar[hidden] { display: none; }
+#toolbar.has-avatar .tb-title { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 12px; align-items: center; }
+#toolbar.has-avatar .tb-title .tb-avatar { grid-row: 1 / span 2; }
+@media (max-width: 699px) { .tb-avatar { width: 56px; height: 56px; } }
+
+/* ---- Identity card + "Not them?" (owner, 30 Oct: homonyms exist) ---- */
+.act-id { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 0 0 10px; font: 14px/1.4 var(--font-sans); color: var(--label-secondary); }
+.act-id[hidden] { display: none; }
+.act-id__facts { color: var(--label); font-weight: var(--weight-medium); }
+.act-id__desc { flex-basis: 100%; font-size: 13px; }
+.act-id__who { padding: 0; border: 0; background: none; color: var(--label); font: var(--weight-semibold) 14px var(--font-sans); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; min-height: 32px; }
+.who-lead { margin: 0 0 12px; color: var(--label-secondary); font-size: 14px; }
+.who-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.who-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; border: 0; border-radius: 16px; background: var(--bg-elevated); text-align: left; cursor: pointer; box-shadow: 0 0 0 0.5px var(--separator); }
+.who-row img, .who-ph { flex: none; width: 52px; height: 52px; border-radius: 50%; object-fit: cover; display: grid; place-items: center; background: var(--taste-soft); color: var(--label-secondary); }
+.who-txt { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.who-txt b { font: var(--weight-semibold) 16px/1.25 var(--font-sans); color: var(--label); }
+.who-txt small { font: 13px/1.35 var(--font-sans); color: var(--label-secondary); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.who-chev { flex: none; width: 14px; height: 14px; color: var(--label-tertiary); }
+/* the photo belongs to the large title; the compact bar on scroll keeps only the name */
+#toolbar.is-scrolled .tb-avatar { display: none; }
+#toolbar.is-scrolled.has-avatar .tb-title { grid-template-columns: minmax(0, 1fr); }
+/* poster: the whole poster visible in its sheet */
+.poster-frame { max-height: none; }
+.poster-frame canvas { height: auto !important; max-height: none; }
+.poster-body { grid-auto-rows: max-content; align-content: start; }
+.poster-frame { aspect-ratio: 4 / 5; width: min(100%, 440px, calc(56dvh * 0.8)); max-width: none; }
+.poster-frame canvas { width: 100%; height: 100% !important; }
+#sheet-poster { max-height: min(94dvh, 980px); height: min(94dvh, 980px); }
+/* Progress bar in the verified green (owner, 30 Oct): finished steps solid, the current one animated */
+.steps li.is-done::before, .live .steps li.is-done::before { background: var(--ok) !important; }
+.steps li.is-active::before, .live .steps li.is-active::before { background: linear-gradient(90deg, var(--fill) 0%, var(--ok) 45%, var(--fill) 90%) !important; background-size: 220% 100% !important; animation: step-run 1.1s linear infinite; }
+.live-head .live-dot { background: var(--ok); }
+@media (prefers-reduced-motion: reduce) { .steps li.is-active::before { animation: none; background: var(--ok) !important; opacity: .5; } }

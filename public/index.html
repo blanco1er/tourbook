@@ -38,6 +38,9 @@
   <symbol id="i-search-s" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 4.5 4.5"/></symbol>
   <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.4 3.6 5.2 3.6 8.5s-1.2 6.1-3.6 8.5c-2.4-2.4-3.6-5.2-3.6-8.5s1.2-6.1 3.6-8.5z"/></symbol>
   <symbol id="i-chev-l" viewBox="0 0 24 24"><path d="m14.5 6-6 6 6 6"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3.5l1.9 5.1 5.1 1.9-5.1 1.9L12 17.5l-1.9-5.1L5 10.5l5.1-1.9z"/><path d="M18.5 15.5l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></symbol>
+  <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 3.5v11M8 7.5l4-4 4 4"/><path d="M7 11H5.5v9.5h13V11H17"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M8 11l4 4 4-4"/><path d="M5 19.5h14"/></symbol>
   <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.4"/></symbol>
   <symbol id="i-route" viewBox="0 0 24 24"><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="6" r="2.2"/><path d="M8 18h7.5a3.5 3.5 0 0 0 0-7h-7a3.5 3.5 0 0 1 0-7H16"/></symbol>
   <symbol id="i-x" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
@@ -84,6 +87,7 @@
       <button class="ui-icon-button ui-glass tb-sidebar-toggle hide-compact" type="button" data-sidebar-toggle aria-label="Show or hide the sidebar"><svg class="ui-icon"><use href="#i-sidebar"/></svg></button>
       <button class="tb-home" type="button" id="homeBtn" hidden><svg class="ui-icon" aria-hidden="true"><use href="#i-chev-l"/></svg><span>Home</span></button>
       <div class="ui-toolbar__title tb-title">
+        <img class="tb-avatar" id="tbAvatar" alt="" hidden>
         <h1 id="tbTitle">Tour plan</h1>
         <p class="ui-footnote ui-secondary" id="tbSub">Route a tour by taste, not population</p>
       </div>
@@ -105,6 +109,7 @@
       <section class="view page" id="view-plan" data-view="plan" data-state="empty" aria-labelledby="tbTitle">
 
         <div class="lead">
+          <div class="act-id" id="actId" hidden></div>
           <p class="summary" id="summary" aria-live="polite"><strong>Population lies, taste doesn’t.</strong><span class="sum-rest"> A mid-size act usually tours New York, Los Angeles and Chicago. Tourbook’s agent asks Qloo where the act’s fans actually over-index, then preps every date with its evidence.</span></p>
 
           <div class="lead-actions" id="leadActions">
@@ -137,6 +142,7 @@
           </div>
 
           <div class="ui-stats" id="stats" role="list" hidden></div>
+          <div class="tour-validate when-ready"><button class="ui-button ui-button--prominent" type="button" id="validateBtn"><svg class="ui-icon"><use href="#i-check"/></svg><span>Validate the tour</span></button><span class="tour-validate__note" id="validateNote">Then make its poster</span></div>
         </div>
 
         <!-- Map: full bleed, runs under the glass sidebar -->
@@ -359,6 +365,33 @@
 </dialog>
 
 <!-- ===================== Sheet: city dossier ===================== -->
+<dialog class="ui-sheet" id="sheet-who" aria-labelledby="whoTitle">
+  <div class="ui-sheet__grabber"></div>
+  <div class="ui-sheet__bar">
+    <button class="ui-button ui-button--plain" type="button" data-sheet-close>Close</button>
+    <h2 class="ui-sheet__title" id="whoTitle">Which act?</h2>
+    <span></span>
+  </div>
+  <div class="ui-sheet__body"><p class="who-lead">Several acts on Qloo have a close name. Pick the right one: the plan is made again for that act.</p><ul class="who-list" id="whoList"></ul></div>
+</dialog>
+
+<dialog class="ui-sheet sheet-wide" id="sheet-poster" aria-labelledby="posterTitle">
+  <div class="ui-sheet__grabber"></div>
+  <div class="ui-sheet__bar">
+    <button class="ui-button ui-button--plain" type="button" data-sheet-close>Close</button>
+    <h2 class="ui-sheet__title" id="posterTitle">Tour poster</h2>
+    <span></span>
+  </div>
+  <div class="ui-sheet__body poster-body">
+    <div class="poster-frame" id="posterFrame"><canvas id="posterCanvas" width="1080" height="1350" aria-label="Tour poster"></canvas><div class="poster-busy" id="posterBusy" hidden><span class="live-dot"></span><b id="posterBusyText">Painting…</b></div></div>
+    <div class="poster-actions">
+      <button class="ui-button ui-button--prominent ui-button--lg" type="button" id="posterArtBtn"><svg class="ui-icon"><use href="#i-spark"/></svg><span>Create the AI artwork</span></button>
+      <div class="poster-row"><button class="ui-button ui-button--lg" type="button" id="posterShare"><svg class="ui-icon"><use href="#i-share"/></svg><span>Share</span></button><button class="ui-button ui-button--lg" type="button" id="posterSave"><svg class="ui-icon"><use href="#i-download"/></svg><span>Save</span></button></div>
+      <p class="poster-note" id="posterNote">The artwork is painted by AI from this act’s taste data: its genres on Qloo and what its audiences like in the tour cities. No face is generated: the photo is the real one Qloo provides. One image per tour, made only when you ask.</p>
+    </div>
+  </div>
+</dialog>
+
 <dialog class="ui-sheet sheet-wide" id="sheet-dossier" aria-labelledby="dossierTitle">
   <div class="ui-sheet__grabber"></div>
   <div class="ui-sheet__bar">

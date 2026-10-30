@@ -80,6 +80,16 @@ for (const ev of ['gesturestart', 'gesturechange']) document.addEventListener(ev
 function bindUi() {
   bindTabs(); bindAsk(); bindRooms();
   $('#liveToggle').addEventListener('click', () => setLiveOpen(!$('#live').classList.contains('is-open')));
+  $('#validateBtn').addEventListener('click', openPoster);
+  $('#actId').addEventListener('click', (e) => { if (e.target.closest('#whoBtn')) openWho(); });
+  $('#whoList').addEventListener('click', (e) => {
+    const r = e.target.closest('[data-who]'); if (!r) return;
+    const c = S.whoCands[Number(r.dataset.who)]; closeSheet('sheet-who');
+    run({ artist: c.name, proxies: S.input?.proxies || [], type: S.input?.type || 'artist', artistId: c.id });
+  });
+  $('#posterArtBtn').addEventListener('click', makePosterArt);
+  $('#posterShare').addEventListener('click', () => sharePoster(true));
+  $('#posterSave').addEventListener('click', () => sharePoster(false));
   document.addEventListener('click', (e) => {
     const nav = e.target.closest('[data-nav]');
     if (nav) { e.preventDefault(); if (nav.dataset.nav === 'plan' && S.view === 'plan' && S.book && !S.running) goHome(); else setView(nav.dataset.nav); return; } // tapping the active Plan tab goes back home, like iOS
@@ -156,6 +166,7 @@ function updateToolbar() {
   document.title = S.view === 'plan' && S.book ? `${title} · Tourbook` : 'Tourbook';
   $('#planTools').hidden = !(S.view === 'plan' && S.book && !S.running);
   $('#homeBtn').hidden = !(S.view === 'plan' && S.book && !S.running);
+  updateAvatar();
   $('#newPlanBtn').classList.toggle('ui-button--prominent', Boolean(S.book) && S.view === 'plan');
   const n = S.calls.length; $('[data-agent-count]').textContent = n ? n : '';
 }
@@ -224,7 +235,7 @@ function run(input, { rid, keepView = false, demoIndex } = {}) {
   if (S.running) { toast({ title: t('Already planning'), detail: t('{artist} is still running. One plan at a time.', { artist: S.input?.artist }) }); return; }
   S.running = true;
   S.rid = rid || newRid(); S.retryRid = null;
-  S.es?.close(); S.book = null; S.dossiers = {}; S.calls = []; S.tools = 0; S.trace = []; S.input = input; S.liveTop = null; S.heat = null; S.curTool = null; S.plan = 'qloo';
+  S.es?.close(); S.book = null; S.dossiers = {}; setActPhoto(null); S.actShown = false; $('#actId').hidden = true; S.validated = false; S.posterArt = null; S.act = null; updateValidate(); S.calls = []; S.tools = 0; S.trace = []; S.input = input; S.liveTop = null; S.heat = null; S.curTool = null; S.plan = 'qloo';
   fillForm(input);
   stopVoice(); if ($('#sheet-dossier').open) closeSheet('sheet-dossier');
   setBusy(true, demoIndex ?? S.cfg.demos.findIndex((d) => d.artist === input.artist));
@@ -250,6 +261,7 @@ function run(input, { rid, keepView = false, demoIndex } = {}) {
   try { sessionStorage.setItem(PENDING_KEY, JSON.stringify({ params: shareParams(input), rid: S.rid, t: Date.now() })); } catch {}
   history.replaceState(null, '', `?${shareParams(input)}${location.hash}`);
   const qs = new URLSearchParams({ artist: input.artist, proxies: input.proxies.join(','), type: input.type, rid: S.rid });
+  if (input.artistId) qs.set('artistId', input.artistId);
   if (LANG === 'fr') qs.set('lang', 'fr'); // the agent narrates and summarises in French; tools and Qloo calls are unchanged
   const es = new EventSource(`/api/plan/stream?${qs}`);
   S.es = es;
@@ -274,6 +286,7 @@ function run(input, { rid, keepView = false, demoIndex } = {}) {
       agentLine({ kind: 'tool', d });
     }
     if (d.status === 'done') { agentLine({ kind: 'done', d }); cityWork(d, 'done'); lvLine(d, 'done'); }
+    if (d.status === 'done' && d.name === 'resolve_entity' && !S.actShown && d.result?.selected && (S.input?.artistId ? d.result.selected.id === S.input.artistId : d.result.selected.name?.trim().toLowerCase() === S.input?.artist?.trim().toLowerCase())) { S.actShown = true; showActId(d.result.selected, null); }
     if (d.status === 'done' && d.name === 'rank_markets' && d.result?.top) { S.liveTop = d.result.top; drawLiveTop(); }
     if (d.status === 'error') { lvLine(d, 'error'); liveLine('err', `<b>${esc(d.name)}</b><span>${esc(d.error)}</span>`); agentLine({ kind: 'toolerr', d }); }
     updateToolbar();
@@ -357,7 +370,7 @@ function restoreSession() {
 function goHome() {
   if (S.running) return;
   stopVoice(); if ($('#sheet-dossier').open) closeSheet('sheet-dossier');
-  S.book = null; S.input = null; S.trace = []; S.calls = []; S.tools = 0; S.plan = 'qloo'; S.liveTop = null; S.heat = null;
+  S.book = null; S.input = null; S.trace = []; S.calls = []; S.tools = 0; S.plan = 'qloo'; S.liveTop = null; S.heat = null; setActPhoto(null); $('#actId').hidden = true; S.validated = false; S.posterArt = null; S.act = null; updateValidate();
   try { sessionStorage.removeItem(SESSION_KEY); } catch { /* storage blocked */ }
   clearPending();
   const v = $('#view-plan'); v.dataset.state = 'empty';
@@ -668,6 +681,7 @@ function render() {
   }
   const view = $('#view-plan');
   view.dataset.state = 'ready';
+  if (b.artist?.selected) showActId(b.artist.selected, b.artist.candidates || []);
   const live = b.meta.qloo === 'live';
   const top = b.markets.top; const lead = top[0];
   const hidden = top.filter((m) => m.hidden).length;
@@ -1538,6 +1552,155 @@ function bindRooms() {
       row?.classList.remove('is-flash'); void row?.offsetWidth; row?.classList.add('is-flash');
     }
   });
+}
+
+// The act's real photo (Qloo) next to its name, as soon as the agent has found it: "yes, that's them".
+function setActPhoto(id, name = '') {
+  const img = $('#tbAvatar'); if (!img) return;
+  S.actPhoto = id || null;
+  if (!id) { img.hidden = true; img.removeAttribute('src'); $('#toolbar').classList.remove('has-avatar'); return; }
+  img.alt = name; img.onload = () => { img.hidden = false; $('#toolbar').classList.add('has-avatar'); spring(img, [{ opacity: 0, transform: 'scale(.8)' }, { opacity: 1, transform: 'none' }], { preset: 'quick', fill: 'none' }); };
+  img.onerror = () => { img.hidden = true; };
+  img.src = `/api/photo/${id}`;
+}
+// Identity card under the name: who this act is, so a homonym shows at once; "Not them?" lists the other matches.
+const yearsOld = (d) => { const b = new Date(d); if (Number.isNaN(+b)) return null; const n = new Date(); return n.getFullYear() - b.getFullYear() - (n < new Date(n.getFullYear(), b.getMonth(), b.getDate()) ? 1 : 0); };
+function actFacts(a) {
+  const f = [];
+  if (a.group === true) f.push(t('Band')); else if (a.group === false || a.born) f.push(t('Solo'));
+  if (a.born) { const y = yearsOld(a.born); if (y) f.push(t('{n} years old', { n: y })); }
+  else if (a.since) f.push(t('Active since {y}', { y: a.since }));
+  if (a.from) f.push(String(a.from).split(',')[0]);
+  const g = (a.genreTags || []).map((x) => String(x.name || x)).map((x) => (/^urn:/.test(x) ? x.split(':').pop().replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase()) : x)).filter(Boolean).slice(0, 2); if (g.length) f.push(g.join(', '));
+  return f;
+}
+function showActId(sel, cands) {
+  if (sel.photo) setActPhoto(sel.photo, sel.name);
+  const box = $('#actId');
+  const facts = actFacts(sel);
+  const others = (cands || []).filter((c) => c.id !== sel.id);
+  S.whoCands = others;
+  box.innerHTML = `${facts.length ? `<span class="act-id__facts">${facts.map(esc).join(' · ')}</span>` : ''}${sel.description ? `<span class="act-id__desc">${esc(sel.description)}</span>` : ''}${others.length && !S.running ? `<button class="act-id__who" type="button" id="whoBtn">${t('Not them?')}</button>` : ''}`;
+  box.hidden = !box.innerHTML;
+}
+function openWho() {
+  const list = S.whoCands || [];
+  $('#whoList').innerHTML = list.map((c, i) => `<li><button type="button" class="who-row" data-who="${i}">${c.photo ? `<img src="/api/photo/${c.photo}" alt="">` : `<span class="who-ph">${icon('i-note')}</span>`}<span class="who-txt"><b>${esc(c.name)}</b><small>${esc([...actFacts(c), c.description].filter(Boolean).join(' · '))}</small></span>${icon('i-chev-r', 'who-chev')}</button></li>`).join('');
+  openSheet('sheet-who');
+}
+function updateAvatar() { const show = !!S.actPhoto && S.view === 'plan' && !!(S.running || S.book); $('#tbAvatar').hidden = !show || !$('#tbAvatar').complete; $('#toolbar').classList.toggle('has-avatar', show); }
+
+// ---------------- tour poster (30 Oct) ----------------
+// "Validate the tour" opens the poster: the layout (real Qloo photo, cities, route) is drawn at once and costs nothing;
+// the AI artwork is painted only when asked, once per tour, then kept by the server.
+function updateValidate() {
+  const btn = $('#validateBtn'); if (!btn) return;
+  btn.querySelector('span').textContent = S.validated ? t('Tour poster') : t('Validate the tour');
+  btn.querySelector('use').setAttribute('href', S.validated ? '#i-spark' : '#i-check');
+  btn.classList.toggle('ui-button--prominent', !S.validated);
+  $('#validateNote').textContent = S.validated ? t('Tour validated') : t('Then make its poster');
+}
+function tourStops() {
+  const b = S.book; const top = new Map(b.markets.top.map((m) => [m.id, m]));
+  return (b.route?.length ? b.route : b.markets.top.map((m) => m.id)).map((id) => (S.cities[id] ? { ...S.cities[id], hidden: !!top.get(id)?.hidden } : null)).filter(Boolean);
+}
+async function openPoster() {
+  if (!S.book) return;
+  S.validated = true; updateValidate();
+  openSheet('sheet-poster');
+  const sel = S.book.artist.selected;
+  if (!S.act || S.act.key !== sel.id) {
+    S.act = null;
+    try { const r = await fetch(`/api/act?q=${encodeURIComponent(sel.name)}&id=${encodeURIComponent(sel.id)}&type=${S.input?.type || 'artist'}`); S.act = (await r.json()).act; if (S.act) S.act.key = sel.id; } catch { /* the poster still works without the photo */ }
+  }
+  $('#posterArtBtn').hidden = !!S.posterArt;
+  await drawPoster();
+}
+const loadImg = (src) => new Promise((ok, ko) => { const i = new Image(); i.onload = () => ok(i); i.onerror = ko; i.src = src; });
+function coverDraw(x, img, dx, dy, dw, dh) {
+  const s = Math.max(dw / img.width, dh / img.height); const w = img.width * s, h = img.height * s;
+  x.drawImage(img, dx + (dw - w) / 2, dy + (dh - h) / 2, w, h);
+}
+function rrect(x, X, Y, w, h, r) { x.beginPath(); x.moveTo(X + r, Y); x.arcTo(X + w, Y, X + w, Y + h, r); x.arcTo(X + w, Y + h, X, Y + h, r); x.arcTo(X, Y + h, X, Y, r); x.arcTo(X, Y, X + w, Y, r); x.closePath(); }
+async function drawPoster() {
+  const c = $('#posterCanvas'); const W = 1080, H = 1350; const x = c.getContext('2d');
+  const font = getComputedStyle(document.documentElement).getPropertyValue('--font-display') || 'system-ui';
+  const stops = tourStops(); const name = S.book.artist.selected.name;
+  x.clearRect(0, 0, W, H);
+  // background: the AI artwork, or a warm dark field until it is made
+  let art = null; if (S.posterArt) { try { art = await loadImg(S.posterArt); } catch { art = null; } }
+  if (art) coverDraw(x, art, 0, 0, W, H);
+  else {
+    const g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#1A1411'); g.addColorStop(1, '#0B0908'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+    const r = x.createRadialGradient(W * 0.78, H * 0.22, 0, W * 0.78, H * 0.22, W * 0.9); r.addColorStop(0, 'rgba(226,86,31,.55)'); r.addColorStop(0.55, 'rgba(226,86,31,.12)'); r.addColorStop(1, 'rgba(226,86,31,0)'); x.fillStyle = r; x.fillRect(0, 0, W, H);
+  }
+  let g = x.createLinearGradient(0, 0, 0, 420); g.addColorStop(0, 'rgba(0,0,0,.5)'); g.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = g; x.fillRect(0, 0, W, 420);
+  g = x.createLinearGradient(0, H * 0.32, 0, H); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.45, 'rgba(0,0,0,.62)'); g.addColorStop(1, 'rgba(0,0,0,.9)'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+  // the act's real photo (Qloo), never a generated face
+  if (S.act?.photo) {
+    try {
+      const p = await loadImg(`/api/photo/${S.act.photo}`);
+      x.save(); rrect(x, 72, 72, 300, 300, 40); x.clip(); coverDraw(x, p, 72, 72, 300, 300); x.restore();
+      x.save(); rrect(x, 72, 72, 300, 300, 40); x.lineWidth = 4; x.strokeStyle = 'rgba(255,255,255,.85)'; x.stroke(); x.restore();
+    } catch { /* no photo: the layout holds without it */ }
+  }
+  // the route, top right, on its own small projection
+  const box = { x: 430, y: 92, w: 578, h: 260 };
+  const lng = stops.map((s) => s.lng), lat = stops.map((s) => s.lat);
+  const [x0, x1, y0, y1] = [Math.min(...lng), Math.max(...lng), Math.min(...lat), Math.max(...lat)];
+  const k = Math.min(box.w / Math.max(1, x1 - x0), box.h / Math.max(1, (y1 - y0) * 1.25));
+  const px = (s) => [box.x + box.w / 2 + (s.lng - (x0 + x1) / 2) * k, box.y + box.h / 2 - (s.lat - (y0 + y1) / 2) * k * 1.25];
+  x.lineWidth = 4; x.strokeStyle = 'rgba(255,255,255,.75)'; x.lineJoin = 'round'; x.beginPath();
+  stops.forEach((s, i) => { const [X, Y] = px(s); if (i) x.lineTo(X, Y); else x.moveTo(X, Y); }); x.stroke();
+  stops.forEach((s, i) => { const [X, Y] = px(s); x.beginPath(); x.arc(X, Y, i === 0 ? 13 : 9, 0, Math.PI * 2); x.fillStyle = s.hidden ? '#FF8A4C' : '#FFFFFF'; x.fill(); x.lineWidth = 3; x.strokeStyle = 'rgba(0,0,0,.45)'; x.stroke(); });
+  // kicker and name
+  x.fillStyle = '#FF8A4C'; x.font = `700 30px ${font}`; x.textBaseline = 'alphabetic';
+  if ('letterSpacing' in x) x.letterSpacing = '6px';
+  x.fillText(t('THE TASTE TOUR').toUpperCase(), 72, 492);
+  if ('letterSpacing' in x) x.letterSpacing = '0px';
+  let size = 140; x.font = `800 ${size}px ${font}`;
+  const words = name.split(' '); let lines = [name];
+  while (x.measureText(name).width > W - 144 && size > 96) { size -= 4; x.font = `800 ${size}px ${font}`; }
+  if (x.measureText(name).width > W - 144) { const mid = Math.ceil(words.length / 2); lines = [words.slice(0, mid).join(' '), words.slice(mid).join(' ')]; }
+  x.fillStyle = '#FFFFFF'; lines.forEach((l, i) => x.fillText(l, 68, 600 + i * size * 0.95));
+  // the stops, numbered, in one or two columns
+  const yStart = 600 + (lines.length - 1) * size * 0.95 + 96; const two = stops.length > 5;
+  const per = two ? Math.ceil(stops.length / 2) : stops.length; const rowH = Math.min(84, (H - 150 - yStart) / per);
+  stops.forEach((s, i) => {
+    const col = two && i >= per ? 1 : 0; const X = 72 + col * 488; const Y = yStart + (i - col * per) * rowH;
+    x.fillStyle = '#FF8A4C'; x.font = `700 28px ${font}`; x.fillText(String(i + 1).padStart(2, '0'), X, Y);
+    x.fillStyle = '#FFFFFF'; x.font = `600 40px ${font}`; x.fillText(s.name, X + 58, Y);
+    const w = x.measureText(s.name).width; x.fillStyle = 'rgba(255,255,255,.55)'; x.font = `500 26px ${font}`; x.fillText(s.state || '', X + 58 + w + 14, Y);
+  });
+  // footer
+  x.fillStyle = 'rgba(255,255,255,.6)'; x.font = `500 24px ${font}`;
+  x.fillText(t('Routed by taste with Qloo'), 72, H - 64);
+  const hid = stops.filter((s) => s.hidden).length;
+  if (hid) { const txt = t('{n} hidden markets', { n: hid }); const w = x.measureText(txt).width; x.beginPath(); x.arc(W - 72 - w - 22, H - 72, 9, 0, Math.PI * 2); x.fillStyle = '#FF8A4C'; x.fill(); x.fillStyle = 'rgba(255,255,255,.6)'; x.fillText(txt, W - 72 - w, H - 64); }
+}
+async function makePosterArt() {
+  const b = S.book; if (!b || S.posterBusy) return;
+  S.posterBusy = true; const btn = $('#posterArtBtn'); btn.disabled = true;
+  $('#posterBusy').hidden = false; $('#posterBusyText').textContent = t('The AI is painting {name}’s world… about 15 s', { name: b.artist.selected.name });
+  const themes = [...new Set((b.dates || []).flatMap((d) => (d.crowd_brief?.themes || []).map((x) => x.name)))].slice(0, 8);
+  try {
+    const r = await fetch('/api/poster', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ entityId: b.artist.selected.id, kind: S.input?.type || 'artist', genres: S.act?.genres || [], themes, cities: tourStops().map((s) => s.name) }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw Object.assign(new Error(j.error || `HTTP ${r.status}`), { code: j.code });
+    S.posterArt = j.url; btn.hidden = true;
+    await drawPoster();
+  } catch (e) {
+    toast({ title: e.code === 'no_image_model' ? t('No image model on this server') : t('The artwork could not be made'), detail: e.code === 'no_image_model' ? t('The poster keeps its typographic version.') : t(e.message) });
+  } finally { S.posterBusy = false; btn.disabled = false; $('#posterBusy').hidden = true; }
+}
+function sharePoster(share) {
+  const slug = (S.book?.artist?.selected?.name || 'tour').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  $('#posterCanvas').toBlob(async (blob) => {
+    if (!blob) return;
+    const file = new File([blob], `${slug}-tour-poster.png`, { type: 'image/png' });
+    if (share && navigator.canShare?.({ files: [file] })) { try { await navigator.share({ files: [file], title: t('{name} tour poster', { name: S.book.artist.selected.name }) }); return; } catch (e) { if (e.name === 'AbortError') return; } }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = file.name; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  }, 'image/png');
 }
 
 window.Tourbook = { S, UI, briefingText, run }; // handy for debugging in the console
