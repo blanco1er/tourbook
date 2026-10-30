@@ -1162,3 +1162,8 @@ button.live-head { width: 100%; padding: 0; border: 0; background: none; text-al
 /* phone, scrolled plan: Home + tools leave no room for the name, so the compact bar keeps the buttons only */
 @media (max-width: 699px) { #toolbar.is-scrolled:has(#homeBtn:not([hidden])) .tb-title { display: none; } }
 .ui-root .runlog { background: transparent !important; border-radius: 0 !important; box-shadow: none !important; padding: 0 !important; }
+
+/* ---- Owner, 30 Oct: every action button is green; orange stays on the data (map, heat, charts, poster) ---- */
+:root { --accent: var(--ok-strong); }
+.ui-root .ui-button--prominent, .ui-root .ask-send, .ui-root .room-search button, .ui-root #askApply { background: var(--ok-strong) !important; color: #fff !important; }
+.ui-root .ui-button--prominent { box-shadow: 0 6px 18px light-dark(rgba(14,138,62,.26), rgba(0,0,0,.4)); }
