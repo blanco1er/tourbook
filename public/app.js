@@ -54,7 +54,7 @@ async function init() {
     ? t('Qloo Insights API, aggregate taste only. Agent: {model}.', { model: S.cfg.llm.model || S.cfg.llm.provider })
     : t('No Qloo key on this server yet. Acts, venues and numbers are invented; every request has Qloo’s real shape.');
   renderDemos();
-  $('#hoodChips').innerHTML = S.cfg.neighborhoods.map((n) => `<button class="ui-button ui-button--sm" type="button" data-hood="${esc(n)}" aria-pressed="false">${esc(n)}</button>`).join('');
+  $('#hoodChips').innerHTML = S.cfg.neighborhoods.map((n) => { const [name, city] = hoodParts(n); return `<button class="hood" type="button" data-hood="${esc(n)}" aria-pressed="false"><b>${esc(name)}</b><small>${esc(city)}</small></button>`; }).join('');
   if ('speechSynthesis' in window) $('#voiceBtn').hidden = false;
   initMap();
   routeFromUrl();
@@ -77,7 +77,7 @@ function renderDemos() {
 for (const ev of ['gesturestart', 'gesturechange']) document.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
 
 function bindUi() {
-  bindTabs(); bindAsk();
+  bindTabs(); bindAsk(); bindRooms();
   document.addEventListener('click', (e) => {
     const nav = e.target.closest('[data-nav]');
     if (nav) { e.preventDefault(); setView(nav.dataset.nav); return; }
@@ -116,7 +116,7 @@ function bindUi() {
   $('#zoomFit').addEventListener('click', () => fitTour(true));
   $('#mapExpand').addEventListener('click', () => setMapExpanded(!$('#mapwrap').classList.contains('is-expanded')));
   addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('#mapwrap').classList.contains('is-expanded')) setMapExpanded(false); });
-  $('#vPop').addEventListener('input', (e) => { $('#vPopVal').textContent = dec(Number(e.target.value).toFixed(2)); });
+  $('#vSize').addEventListener('change', (e) => { $('#vPop').value = e.target.value; if ($('#vHood').value.trim()) venueSearch(); });
   $('#venueForm').addEventListener('submit', (e) => { e.preventDefault(); venueSearch(); });
   $('#vHood').addEventListener('input', () => { $('#vHood').removeAttribute('aria-invalid'); $('#vHoodErr').hidden = true; });
   addEventListener('hashchange', () => { const v = location.hash.slice(1); if (VIEW_META[v] && v !== S.view) setView(v, { fromHash: true }); });
@@ -136,6 +136,7 @@ function setView(view, { fromHash = false } = {}) {
   toggleSidebar(false);
   updateToolbar();
   if (view === 'plan') requestAnimationFrame(() => S.map?.resize());
+  if (view === 'rooms') { requestAnimationFrame(() => S.roomMap?.resize()); if (!S.venueDone && !S.venueBusy && S.cfg?.neighborhoods?.[0]) { $('#vHood').value ||= S.cfg.neighborhoods[0]; venueSearch(); } }
   scrollTo({ top: 0, behavior: 'auto' });
 }
 function updateToolbar() {
@@ -228,10 +229,12 @@ function run(input, { rid, keepView = false, demoIndex } = {}) {
   view.dataset.state = 'running';
   $('#planError').hidden = true; $('#stats').hidden = true; $('#planToggle').hidden = true;
   $('#planToggle input[value="qloo"]').checked = true; $('#planToggle input[value="qloo"]').dispatchEvent(new Event('change', { bubbles: true }));
-  $('#summary').innerHTML = `<strong>${t('Planning {artist}.', { artist: esc(input.artist) })}</strong> <span class="muted" id="thought">${t('Connecting to the agent…')}</span>`;
-  $('#live').hidden = false; $('#liveLog').innerHTML = ''; $('#steps').innerHTML = '';
+  $('#summary').innerHTML = `<strong>${t('Planning {artist}.', { artist: esc(input.artist) })}</strong> <span class="muted" id="thought">${t('Every step and every Qloo request shows up as it happens.')}</span>`;
+  $('#live').hidden = false; $('#liveLog').innerHTML = ''; $('#steps').innerHTML = ''; $('#lvStages').innerHTML = ''; $('#liveNow').hidden = false; setNow(t('Connecting to the agent…'));
+  S.cityWork = {}; S.readyIds = [];
   clearInterval(S.liveTimer); const t0 = Date.now();
-  const tick = () => { const el = $('#liveMeta'); if (el) el.textContent = `${Math.round((Date.now() - t0) / 1000)} s · ${plural(S.calls.length, 'Qloo request')}`; };
+  const tick = () => { const el = $('#liveMeta'); if (el) el.innerHTML = `${Math.round((Date.now() - t0) / 1000)} s · <b class="live-n">${S.calls.length}</b> ${t((LANG === 'fr' ? S.calls.length <= 1 : S.calls.length === 1) ? 'Qloo request' : 'Qloo requests')}`; };
+  S.liveTick = tick;
   tick(); S.liveTimer = setInterval(tick, 500);
   resetAgentView();
   drawBaseMap();
@@ -251,30 +254,34 @@ function run(input, { rid, keepView = false, demoIndex } = {}) {
   const on = (type, fn) => { H[type] = fn; es.addEventListener(type, (e) => { gotEvent = true; if (S.es !== es) return; const d = JSON.parse(e.data); if (type !== 'done') S.trace.push([type, d]); fn(d); }); };
   on('plan', (d) => {
     $('#steps').innerHTML = d.steps.map((s) => `<li data-step="${esc(s)}">${esc(t(s))}</li>`).join('');
+    $('#lvStages').innerHTML = d.steps.map((s, i) => `<li class="lv-stage" data-stage="${esc(s)}"><details><summary><span class="lv-n">${i + 1}</span><b>${esc(t(s))}</b><span class="lv-sum"></span>${icon('i-chev-r', 'lv-chev')}</summary><ol class="lv-lines"></ol></details></li>`).join('');
     setStep('Resolve');
   });
   on('joined', () => liveLine('thought', t('Attached to the run already in progress. No second plan was started.')));
-  on('thought', (d) => { const t = $('#thought'); if (t) t.textContent = d.text; liveLine('thought', d.text); agentLine({ kind: 'thought', text: d.text }); });
+  on('thought', (d) => { if (S.cfg?.llm?.provider !== 'mock') setNow(d.text); agentLine({ kind: 'thought', text: d.text }); }); // the scripted planner's thought only repeats the tool line
   on('tool', (d) => {
     if (d.status === 'start') {
       S.tools++;
       if (d.stage) setStep(d.stage);
-      const t = $('#thought'); if (t) t.textContent = toolPhrase(d);
-      liveLine('tool', `<b>${esc(d.name)}</b><span>${esc(argSummary(d.args))}</span>`);
+      setNow(toolPhrase(d));
+      lvLine(d, 'start');
+      cityWork(d, 'start');
       agentLine({ kind: 'tool', d });
     }
+    if (d.status === 'done') { agentLine({ kind: 'done', d }); cityWork(d, 'done'); lvLine(d, 'done'); }
     if (d.status === 'done' && d.name === 'rank_markets' && d.result?.top) { S.liveTop = d.result.top; drawLiveTop(); }
-    if (d.status === 'error') { liveLine('err', `<b>${esc(d.name)}</b><span>${esc(d.error)}</span>`); agentLine({ kind: 'toolerr', d }); }
+    if (d.status === 'error') { lvLine(d, 'error'); liveLine('err', `<b>${esc(d.name)}</b><span>${esc(d.error)}</span>`); agentLine({ kind: 'toolerr', d }); }
     updateToolbar();
   });
   on('heat', (d) => { S.heat = d; drawHeat(true); });
   on('call', (d) => {
     if (d.status === 'start') return;
     S.calls.push(d);
-    const ft = d.params?.['filter.type'] ? ` ${d.params['filter.type'].replace('urn:entity:', '')}` : '';
     const ok = d.status === 'ok';
-    liveLine(ok ? 'call' : 'err', `<b>${ok ? 'GET' : esc(String(d.status).toUpperCase())}</b><span>${esc(d.path)}${esc(ft)}</span><em>${d.ms ?? ''} ms</em>`);
+    liveLine(ok ? 'call' : 'err', `<b class="lf-k">${ok ? esc(callKind(d)) : esc(String(d.status).toUpperCase())}</b><span>${esc(callWhat(d))}</span><em>${d.cache === 'hit' ? t('cached') : `${d.ms ?? ''} ms`}</em>`);
+    S.liveTick?.(); $('#liveMeta .live-n')?.classList.add('is-bump');
     agentLine({ kind: 'call', d });
+    lvCall(d);
     updateToolbar();
   });
   on('done', (book) => {
@@ -430,15 +437,102 @@ function setStep(stage) {
   $$('#steps li').forEach((li) => {
     if (li.dataset.step === stage) { li.className = 'is-active'; passed = false; } else li.className = passed ? 'is-done' : '';
   });
+  lvStage(stage);
+}
+// Live stage list: the stage being worked on is open and shows each action as it happens; finished stages fold
+// into a one-line summary and reopen on tap.
+function lvStage(stage) {
+  let passed = true;
+  $$('#lvStages .lv-stage').forEach((li) => {
+    const was = li.classList.contains('is-active');
+    const now = li.dataset.stage === stage;
+    li.classList.toggle('is-active', now); li.classList.toggle('is-done', passed && !now);
+    if (now) { passed = false; li.querySelector('details').open = true; }
+    else if (was) li.querySelector('details').open = false;
+  });
+}
+function lvSum(li) {
+  const lines = $$('.lv-line', li); const req = lines.reduce((s, x) => s + Number(x.dataset.req || 0), 0);
+  li.querySelector('.lv-sum').textContent = lines.length ? `${plural(lines.length, 'action')} · ${plural(req, 'request')}` : '';
+}
+function lvLine(d, phase) {
+  if (phase === 'start') {
+    const st = $(`#lvStages .lv-stage[data-stage="${CSS.escape(d.stage || '')}"]`) || $('#lvStages .lv-stage.is-active');
+    if (!st) return;
+    const li = document.createElement('li'); li.className = 'lv-line is-running'; li.dataset.id = d.id || ''; li.dataset.req = '0';
+    li.innerHTML = `<span class="lv-state" aria-hidden="true">${icon('i-check')}</span><span class="lv-text">${esc(toolPhrase(d))}</span><em></em>`;
+    st.querySelector('.lv-lines').append(li); lvSum(st);
+    S.lvCur = li;
+    spring(li, [{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { preset: 'quick', fill: 'none' });
+    return;
+  }
+  const li = $(`#lvStages .lv-line[data-id="${CSS.escape(d.id || '')}"]`) || S.lvCur; if (!li) return;
+  li.classList.remove('is-running'); if (phase === 'error') li.classList.add('is-err');
+}
+function lvCall(d) {
+  const li = S.lvCur; if (!li) return;
+  li.dataset.req = String(Number(li.dataset.req) + 1);
+  li.querySelector('em').textContent = plural(Number(li.dataset.req), 'request');
+  lvSum(li.closest('.lv-stage'));
 }
 function liveLine(kind, html) {
   const log = $('#liveLog');
   const li = document.createElement('li');
   li.className = `is-${kind}`;
   li.innerHTML = kind === 'thought' ? esc(html) : html;
-  log.append(li);
-  while (log.children.length > 6) log.firstElementChild.remove();
-  spring(li, [{ opacity: 0.35, transform: 'translateY(4px)' }, { opacity: 1, transform: 'none' }], { preset: 'quick', fill: 'none' });
+  log.prepend(li);
+  while (log.children.length > 4) log.lastElementChild.remove();
+  spring(li, [{ opacity: 0, transform: 'translateY(-10px)' }, { opacity: 1, transform: 'none' }], { preset: 'quick', fill: 'none' });
+}
+// The sentence under the progress bar: what the agent is doing now, swapped with a short slide.
+function setNow(text) {
+  const box = $('#liveNow'); if (!box || !text || box.dataset.text === text) return;
+  box.dataset.text = text;
+  [...box.children].forEach((c) => { if (c.classList.contains('is-out')) return; c.classList.add('is-out'); setTimeout(() => c.remove(), 320); });
+  const span = document.createElement('span'); span.textContent = text; box.append(span);
+  spring(span, [{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], { preset: 'quick', fill: 'none' });
+}
+// Readable names for the Qloo requests in the live feed (the Agent tab keeps the exact paths).
+const TYPE_WORD = { artist: 'Artists', place: 'Places', brand: 'Brands', podcast: 'Podcasts', tv_show: 'TV shows', movie: 'Films', person: 'People', book: 'Books', videogame: 'Games' };
+function callKind(d) {
+  const ft = String(d.params?.['filter.type'] || '');
+  if (/search/.test(d.path)) return t('Search');
+  if (/compare/.test(d.path)) return t('Overlap');
+  if (/trending/.test(d.path)) return t('Trend');
+  if (ft === 'urn:heatmap') return t('Fan heat');
+  if (ft === 'urn:demographics') return t('Audience');
+  return t(TYPE_WORD[ft.replace('urn:entity:', '')] || 'Insights');
+}
+function callWhat(d) {
+  const ft = String(d.params?.['filter.type'] || '');
+  const city = S.cities?.[S.curCityId]?.name;
+  if (/search/.test(d.path)) return d.params?.query ? `« ${d.params.query} »` : t('taste graph');
+  if (/compare/.test(d.path)) return t('shared taste with the headliner');
+  if (ft === 'urn:heatmap') return t('fan density, nationwide');
+  if (ft === 'urn:demographics') return t('age and gender segments');
+  if (/trending/.test(d.path)) return t('last six months');
+  return d.params?.['signal.location.query'] || d.params?.['filter.location.query'] || (S.liveTop ? city : '') || t('taste affinity');
+}
+// Map while the dates are prepared: the city being worked on pulses, a finished city is ticked and the route grows.
+const CITY_TASKS = 5; // room, after-show, crowd brief, opener, sponsor
+function cityWork(d, phase) {
+  const id = d.args?.city_id; if (!id || !S.map) return;
+  const el = S.markers.map((m) => m.getElement()).find((x) => x.dataset.id === id);
+  if (phase === 'start') {
+    S.curCityId = id;
+    S.markers.forEach((m) => m.getElement().classList.remove('is-working'));
+    el?.classList.add('is-working');
+    setMapTitle(`<span class="live-dot"></span>${esc(toolPhrase(d))}`);
+    return;
+  }
+  const n = (S.cityWork[id] = (S.cityWork[id] || 0) + 1);
+  if (n >= CITY_TASKS && !S.readyIds.includes(id)) {
+    S.readyIds.push(id); el?.classList.add('is-ready'); el?.classList.remove('is-working');
+    const order = (S.liveTop || []).map((m) => m.id).filter((x) => S.readyIds.includes(x));
+    const coords = order.map((x) => S.cities[x]).filter(Boolean).map((c) => [c.lng, c.lat]);
+    S.map.getSource('route')?.setData({ type: 'FeatureCollection', features: coords.length > 1 ? [{ type: 'Feature', geometry: { type: 'LineString', coordinates: coords } }] : [] });
+    setMapTitle(`<span class="live-dot"></span>${t('{n} of {m} dates ready', { n: S.readyIds.length, m: (S.liveTop || []).length })}`);
+  }
 }
 
 // ---------------- agent view (full run log) ----------------
@@ -448,22 +542,58 @@ function resetAgentView() {
   $('#agentSummary').innerHTML = `<strong>${t('The agent is planning {artist}.', { artist: esc(S.input.artist) })}</strong> <span class="muted">${t('Each tool call and each Qloo request appears below as it happens.')}</span>`;
   $('#agentStats').innerHTML = ''; $('#usage').innerHTML = ''; $('#usageFoot').textContent = ''; $('#guards').innerHTML = ''; $('#logMeta').textContent = '';
 }
+// 30 Oct: the run log is a timeline grouped by stage; each tool is one readable line whose details open on tap.
+function agentGroup(stage) {
+  const log = $('#runlog'); const key = stage || 'Notes';
+  let g = log.querySelector(`.tl-stage[data-stage="${CSS.escape(key)}"]`);
+  if (!g) {
+    g = document.createElement('li'); g.className = 'tl-stage is-live'; g.dataset.stage = key;
+    const n = log.querySelectorAll('.tl-stage').length + 1;
+    g.innerHTML = `<div class="tl-head"><span class="tl-n">${n}</span><b>${esc(t(key))}</b><span class="tl-sum"></span></div><ol class="tl-items"></ol>`;
+    log.append(g);
+    log.querySelectorAll('.tl-stage.is-live').forEach((x) => { if (x !== g) x.classList.remove('is-live'); });
+  }
+  return g;
+}
+function agentSums() {
+  $$('#runlog .tl-stage').forEach((g) => {
+    const items = $$('.tl-item', g); const req = items.reduce((s, x) => s + Number(x.dataset.req || 0), 0); const ms = items.reduce((s, x) => s + Number(x.dataset.ms || 0), 0);
+    g.querySelector('.tl-sum').textContent = `${plural(items.length, 'tool call')} · ${plural(req, 'request')}${ms ? ` · ${dec((ms / 1000).toFixed(1))} s` : ''}`;
+  });
+}
 function agentLine({ kind, d, text }) {
   const log = $('#runlog');
-  if (kind === 'thought' || kind === 'fail') {
-    log.insertAdjacentHTML('beforeend', `<li class="thought"${kind === 'fail' ? ' style="color:var(--status-critical-text)"' : ''}>${esc(text)}</li>`);
+  // With the scripted planner a thought only repeats the next tool line; a real model's reasoning shows under that tool.
+  if (kind === 'thought') { if (S.cfg?.llm?.provider !== 'mock') S.pendingWhy = text; return; }
+  if (kind === 'fail') {
+    const g = log.lastElementChild?.classList.contains('tl-stage') ? log.lastElementChild : agentGroup('Notes');
+    g.querySelector('.tl-items').insertAdjacentHTML('beforeend', `<li class="tl-note${kind === 'fail' ? ' is-err' : ''}">${esc(text)}</li>`);
   } else if (kind === 'tool') {
+    const g = agentGroup(d.stage);
     const li = document.createElement('li');
-    li.innerHTML = `<div class="tool"><b>${esc(d.name)}</b><span class="stage">${esc(t(d.stage || ''))}</span><span class="args">${esc(JSON.stringify(d.args))}</span></div><ul class="calls"></ul>`;
-    log.append(li); S.curTool = li.querySelector('.calls');
+    li.className = 'tl-item is-running'; li.dataset.id = d.id || ''; li.dataset.req = '0'; li.dataset.ms = '0';
+    li.innerHTML = `<details><summary><span class="tl-state" aria-hidden="true">${icon('i-check')}</span><span class="tl-title">${esc(toolPhrase(d))}${S.pendingWhy ? `<small class="tl-why">${esc(S.pendingWhy)}</small>` : ''}</span><span class="tl-meta"></span>${icon('i-chev-r', 'tl-chev')}</summary>
+      <div class="tl-body"><p class="tl-fn"><code>${esc(d.name)}</code></p><pre class="tl-args">${esc(JSON.stringify(d.args || {}, null, 2))}</pre><ul class="calls"></ul></div></details>`;
+    g.querySelector('.tl-items').append(li); S.curTool = li; S.pendingWhy = null;
+    spring(li, [{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { preset: 'quick', fill: 'none' });
   } else if (kind === 'toolerr') {
-    log.insertAdjacentHTML('beforeend', `<li class="thought" style="color:var(--status-critical-text)">${t('{name} failed: {error}', { name: esc(d.name), error: esc(d.error) })}</li>`);
+    const li = $(`#runlog .tl-item[data-id="${CSS.escape(d.id || '')}"]`) || S.curTool;
+    if (li) { li.classList.remove('is-running'); li.classList.add('is-err'); li.querySelector('.tl-meta').textContent = t('failed'); li.querySelector('.tl-body').insertAdjacentHTML('afterbegin', `<p class="tl-err">${esc(d.error)}</p>`); }
+  } else if (kind === 'done') {
+    const li = $(`#runlog .tl-item[data-id="${CSS.escape(d.id || '')}"]`);
+    if (li) li.classList.remove('is-running');
   } else if (kind === 'call') {
     const ok = d.status === 'ok';
     const ft = d.params?.['filter.type'] ? ` · ${d.params['filter.type']}` : '';
     const html = `<li class="${ok ? '' : 'is-err'}" title="${esc(Object.entries(d.params || {}).map(([k, v]) => `${k}=${v}`).join('\n'))}"><span class="verb">${ok ? 'GET' : esc(String(d.status).toUpperCase())}</span><span>${esc(d.path)}${esc(ft)}${ok ? '' : ` · ${esc(d.error || d.problems?.join(' '))}`}</span><em>${d.ms ?? ''} ms${d.cache && !['miss', 'mock'].includes(d.cache) ? ` · ${esc(d.cache)}` : ''}</em></li>`;
-    (S.curTool || log).insertAdjacentHTML('beforeend', html);
+    const li = S.curTool;
+    if (li) {
+      li.querySelector('.calls').insertAdjacentHTML('beforeend', html);
+      li.dataset.req = String(Number(li.dataset.req) + 1); li.dataset.ms = String(Number(li.dataset.ms) + Number(d.ms || 0));
+      li.querySelector('.tl-meta').textContent = `${plural(Number(li.dataset.req), 'request')} · ${d.cache === 'hit' ? t('cached') : `${li.dataset.ms} ms`}`;
+    }
   }
+  agentSums();
   $('#logMeta').textContent = `${plural(S.tools, 'tool call')} · ${plural(S.calls.length, 'request')}`;
 }
 function renderAgentFinal() {
@@ -471,7 +601,8 @@ function renderAgentFinal() {
   const rejected = S.calls.filter((c) => c.status === 'rejected').length;
   const endpoints = new Set(S.calls.map((c) => c.path));
   const types = new Set(S.calls.map((c) => c.params?.['filter.type']).filter(Boolean));
-  $('#agentSummary').innerHTML = `<strong>${t('{tools} and {requests} in {s} s.', { tools: plural(S.tools, 'tool call'), requests: plural(b.meta.calls, 'Qloo request'), s: dec((b.meta.ms / 1000).toFixed(1)) })}</strong> ${rejected ? t('{n} rejected by the parameter validator.', { n: rejected }) : t('None was rejected by the parameter validator.')} <span class="muted">${t('Every fact in the plan comes from one of these results.')}</span>`;
+  $('#agentSummary').innerHTML = `<strong>${t('Every fact in the plan traces back to one of these Qloo answers.')}</strong> ${rejected ? t('{n} rejected by the parameter validator.', { n: rejected }) : t('None was rejected by the parameter validator.')} <span class="muted">${b.meta.ms < 1000 ? t('Replayed from cached Qloo answers.') : t('Planned in {s} s.', { s: dec((b.meta.ms / 1000).toFixed(1)) })}</span>`;
+  $$('#runlog .tl-stage').forEach((g) => g.classList.remove('is-live')); $$('#runlog .tl-item.is-running').forEach((x) => x.classList.remove('is-running'));
   if (b.summary) $('#runlog').insertAdjacentHTML('beforeend', `<li class="final"><b>${t('Final answer')}</b><p>${esc(b.summary)}</p></li>`);
   $('#agentStats').innerHTML = [
     stat(t('Tool calls'), S.tools, t('typed, schema-checked')),
@@ -813,7 +944,7 @@ function quietStyle() {
   if (!S.map.getSource('heat')) S.map.addSource('heat', { type: 'geojson', data: heatData() });
   if (!S.map.getLayer('heat')) S.map.addLayer({ id: 'heat', type: 'heatmap', source: 'heat', paint: heatPaint(0) });
   if (!S.map.getSource('route')) S.map.addSource('route', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-  const ink = isDark() ? '#E0E7FF' : '#312E81', glow = isDark() ? '#818CF8' : '#6366F1';
+  const ink = isDark() ? '#FDE6D6' : '#6B3A22', glow = isDark() ? '#FF8A4C' : '#EA6A2A';
   if (!S.map.getLayer('route-glow')) S.map.addLayer({ id: 'route-glow', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': glow, 'line-width': 9, 'line-blur': 7, 'line-opacity': isDark() ? 0.55 : 0.35 } });
   if (!S.map.getLayer('route')) S.map.addLayer({ id: 'route', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': ink, 'line-width': 2.2, 'line-opacity': 0.9 } });
   // The tour pulse: a point that keeps travelling the route, stop to stop.
@@ -859,8 +990,8 @@ function heatPaint(opacity) {
     'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 3, 0.75, 6, 1.4, 9, 2.2],
     'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 3, 15, 4, 21, 6, 40, 9, 80],
     'heatmap-color': dark
-      ? ['interpolate', ['linear'], ['heatmap-density'], 0, 'rgba(30,27,75,0)', 0.2, 'rgba(49,46,129,0.45)', 0.45, '#312E81', 0.75, '#3730A3', 1, '#4F46E5']
-      : ['interpolate', ['linear'], ['heatmap-density'], 0, 'rgba(224,231,255,0)', 0.2, 'rgba(199,210,254,0.45)', 0.45, '#C7D2FE', 0.75, '#A5B4FC', 1, '#818CF8'],
+      ? ['interpolate', ['linear'], ['heatmap-density'], 0, 'rgba(60,30,15,0)', 0.2, 'rgba(107,58,34,0.45)', 0.45, '#6B3A22', 0.75, '#B23F0C', 1, '#F06A2E']
+      : ['interpolate', ['linear'], ['heatmap-density'], 0, 'rgba(253,230,214,0)', 0.2, 'rgba(247,201,169,0.45)', 0.45, '#F7C9A9', 0.75, '#FF9A62', 1, '#FF8A4C'],
     'heatmap-opacity': opacity,
   };
 }
@@ -916,7 +1047,8 @@ function addMarker(m, { size, bg, label = '', rank = 0, score = null, minor = fa
   const el = document.createElement('div');
   el.className = `mk${minor ? ' is-minor' : ' is-stop'}${hidden ? ' is-hidden' : ''}${enter ? ' is-enter' : ''}${rank > 5 ? ' is-rank-far' : ''}`;
   el.style.setProperty('--d', `${delay}ms`); el.style.setProperty('--r', `${size / 2}px`);
-  el.dataset.size = size; if (rank) el.dataset.rank = rank;
+  el.dataset.size = size; if (rank) el.dataset.rank = rank; if (m.id) el.dataset.id = m.id;
+  el.style.setProperty('--sd', `${Math.round(((m.lng + 125) / 58) * 1800)}ms`);
   const ink = luminance(bg) > 0.55 ? '#1D1D1F' : '#fff';
   const tag = label ? `<div class="lbl">${rank ? `<i style="background:${bg};color:${ink}">${rank}</i>` : ''}<span>${esc(label)}</span>${score != null ? `<b>${score}</b>` : ''}</div>` : '';
   el.innerHTML = `<div class="dot" style="width:${size}px;height:${size}px;background:${bg}"></div>${tag}`;
@@ -938,8 +1070,8 @@ function mix(a, b, t) {
   const [x, y] = [p(a), p(b)];
   return `#${x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, '0')).join('')}`;
 }
-// One indigo scale: the stronger the market (Hidden Market Score), the deeper the colour (light mode) or the brighter (dark mode).
-const tasteColor = (h) => { const t = Math.max(0, Math.min(1, (h - 35) / 60)); return isDark() ? mix('#3730A3', '#A5B4FC', t) : mix('#C7D2FE', '#312E81', t); };
+// One warm orange scale: the stronger the market (Hidden Market Score), the deeper the colour (light mode) or the brighter (dark mode).
+const tasteColor = (h) => { const t = Math.max(0, Math.min(1, (h - 35) / 60)); return isDark() ? mix('#B23F0C', '#FF9A62', t) : mix('#F7C9A9', '#6B3A22', t); };
 const greyDot = () => (isDark() ? '#636366' : '#AEAEB2');
 
 function drawBaseMap() {
@@ -951,10 +1083,11 @@ function drawBaseMap() {
   drawHeat(false);
   $('#legend').innerHTML = `<b>${t('34 US metros')}</b><span class="ui-secondary">${t('Sized by population, the way tours are usually routed.')}${S.running ? ` ${t('Scoring them by taste…')}` : ''}</span>`;
   setMapTitle(S.running ? `<span class="live-dot"></span>${t('Scoring 34 metros by taste')}` : '');
+  $('#mapwrap').classList.toggle('is-scan', !!S.running);
 }
 function drawLiveTop() {
   if (!S.map || !S.liveTop) return;
-  clearMarkers();
+  clearMarkers(); $('#mapwrap').classList.remove('is-scan');
   const top = new Map(S.liveTop.map((m, i) => [m.id, { ...m, rank: i + 1 }]));
   for (const c of S.cfg.cities) {
     const t = top.get(c.id);
@@ -970,7 +1103,7 @@ function drawLiveTop() {
 let routeAnim;
 function drawMap() {
   if (!S.map || !S.book?.markets) return;
-  clearMarkers();
+  clearMarkers(); $('#mapwrap').classList.remove('is-scan');
   const b = S.book; const all = b.markets.all;
   const affs = all.map((m) => m.affinity); const lo = Math.min(...affs), hi = Math.max(...affs);
   const maxPop = Math.max(...all.map((m) => m.pop));
@@ -986,7 +1119,7 @@ function drawMap() {
     addMarker(m, { size, bg: qloo ? tasteColor(m.hms) : (isDark() ? '#8E8E93' : '#636366'), rank, score: qloo ? m.hms : null, label: m.name, hidden: qloo && m.hidden, enter: true, delay: rank * 90 });
   }
   $('#legend').innerHTML = qloo
-    ? `<b>${t('With Qloo')}</b><div class="ramp"></div><div class="ends"><span>${t('Hidden Market Score')}</span><span>${t('higher')}</span></div><span class="ui-secondary">${t('Deeper indigo, stronger market. A breathing halo marks a hidden market.')}</span>${heatLegend()}`
+    ? `<b>${t('With Qloo')}</b><div class="ramp"></div><div class="ends"><span>${t('Hidden Market Score')}</span><span>${t('higher')}</span></div><span class="ui-secondary">${t('Deeper orange, stronger market. A breathing halo marks a hidden market.')}</span>${heatLegend()}`
     : `<b>${t('Without Qloo')}</b><div class="ramp is-pop"></div><div class="ends"><span>${t('Population')}</span><span>${t('bigger')}</span></div><span class="ui-secondary">${t('What a model without taste data proposes.')}</span>`;
   const coords = routeIds.map((id) => S.cities[id]).filter(Boolean).map((c) => [c.lng, c.lat]);
   S.routeCoords = coords;
@@ -1283,35 +1416,99 @@ async function share() {
 }
 
 // ---------------- room mode (venue side) ----------------
-const actDesc = (a) => { const d = String(a.description || '').replace(/\s*\(synthetic\)\s*$/i, '').trim(); return d && !/^(artist|musician)$/i.test(d) ? `<span class="act-desc">${esc(d)}</span>` : ''; };
+// 30 Oct: a venue thinks in capacity, not in a popularity index, so the room size sets Qloo's popularity cap.
+// Live affinities for one neighbourhood are all ~0.999, so a "fit" bar would read 100 for everyone: what matters is
+// Qloo's local order crossed with popularity. "Before they blow up" = top half locally AND below the list's median popularity.
+const HOOD_CITY = { 'Lower East Side': 'New York', 'Wicker Park': 'Chicago', 'Silver Lake': 'Los Angeles', 'East Austin': 'Austin' };
+function hoodParts(n) { const [name, city] = String(n).split(/,\s*/); return [name, city || HOOD_CITY[name] || '']; }
+const actDesc = (a) => { const d = a.genres?.length ? a.genres.join(' · ') : String(a.description || '').replace(/\s*\(synthetic\)\s*$/i, '').trim(); return d && !/^(artist|musician)$/i.test(d) ? `<span class="act-desc">${esc(d)}</span>` : ''; };
+const SIZE_LABEL = { '0.5': 'Club', '0.7': 'Mid-size', '0.9': 'Hall' };
+function drawRoomMap(loc) {
+  const ll = loc?.location; const hero = $('#roomHero');
+  if (!ll || !window.maplibregl) { hero.hidden = true; return; }
+  hero.hidden = false;
+  const parts = String(loc.disambiguation || '').split(/,\s*/);
+  $('#roomName').textContent = loc.name || parts[0];
+  $('#roomWhere').textContent = [parts.find((p, i) => i > 0 && !/Town$|Township|County|United States/.test(p) && p !== loc.name), parts.at(-2)].filter(Boolean).filter((v, i, x) => x.indexOf(v) === i).join(', ');
+  const center = [ll.lon, ll.lat];
+  if (!S.roomMap) {
+    try {
+      S.roomMap = new maplibregl.Map({ container: 'roomMap', style: STYLE(), center, zoom: 13.2, interactive: false, attributionControl: false, ...(LANG === 'fr' ? { locale: MAP_LOCALE_FR } : {}) });
+      const el = document.createElement('div'); el.className = 'room-pin'; el.innerHTML = '<i></i><i></i><span></span>';
+      S.roomPin = new maplibregl.Marker({ element: el }).setLngLat(center).addTo(S.roomMap);
+    } catch { hero.hidden = true; }
+  } else {
+    S.roomPin.setLngLat(center);
+    S.roomMap.flyTo({ center, zoom: 13.2, duration: reduceMotion() ? 0 : 1600, essential: true });
+  }
+}
+function fameLadder(acts, cap) {
+  // dots on a 0–1 popularity line, stacked in rows so close values never overlap
+  const rows = [];
+  const dots = [...acts].map((a, i) => ({ a, i })).sort((x, y) => x.a.popularity - y.a.popularity).map((d) => {
+    const x = Math.max(0, Math.min(1, d.a.popularity || 0));
+    let r = rows.findIndex((last) => x - last >= 0.075); if (r < 0) { r = rows.length; rows.push(x); } else rows[r] = x;
+    return `<button type="button" class="fd${d.a.rising ? ' is-rising' : ''}" style="--x:${(x * 100).toFixed(1)}%;--r:${r}" data-act="${d.i}" aria-label="${esc(d.a.name)}, ${t('popularity')} ${pct(d.a.popularity)}">${d.i + 1}</button>`;
+  });
+  return `<div class="fame" style="--rows:${Math.max(1, rows.length)}">
+    <div class="fame-head"><b>${t('Fame ladder')}</b><span>${t(SIZE_LABEL[String(cap)] || 'Mid-size')} · ${t('cap')} ${dec(cap.toFixed(2))}</span></div>
+    <div class="fame-track"><div class="fame-band" style="width:${cap * 100}%"></div>${dots.join('')}</div>
+    <div class="fame-axis"><span>${t('Emerging')}</span><span>${t('Mainstream')}</span></div>
+    <div class="fame-key"><span><i class="is-rising"></i>${t('Book early')}</span><span><i></i>${t('Other acts that fit')}</span></div></div>`;
+}
 async function venueSearch() {
   if (S.venueBusy) return; // one request per click (UB-31)
   const hood = $('#vHood').value.trim();
   if (!hood) { $('#vHood').setAttribute('aria-invalid', 'true'); $('#vHoodErr').hidden = false; $('#vHood').focus(); return; }
-  S.venueBusy = true; $('#venueBtn').disabled = true; $('#venueBtn').textContent = t('Finding acts…');
+  $('#vHood').blur();
+  S.venueBusy = true; S.venueDone = true; $('#venueBtn').disabled = true; $('#venueForm').classList.add('is-busy');
   $$('#hoodChips [data-hood]').forEach((c) => c.setAttribute('aria-pressed', String(c.dataset.hood === hood)));
   const box = $('#venueResults');
-  box.innerHTML = `<div class="skel-rows" aria-label="${t('Loading acts')}">${Array.from({ length: 6 }, (_, i) => `<div class="skel-row"><div class="ui-skeleton" style="width:${40 + ((i * 17) % 35)}%;height:15px"></div><div class="ui-skeleton" style="height:15px"></div><div class="ui-skeleton" style="width:${55 + ((i * 11) % 30)}%;height:11px"></div></div>`).join('')}</div>`;
+  box.innerHTML = `<div class="room-loading"><span class="room-loading__dot"></span>${t('Reading the taste around {hood}…', { hood: esc(hoodParts(hood)[0]) })}</div><div class="skel-rows" aria-label="${t('Loading acts')}">${Array.from({ length: 5 }, (_, i) => `<div class="skel-row"><div class="ui-skeleton" style="width:${40 + ((i * 17) % 35)}%;height:15px"></div><div class="ui-skeleton" style="height:15px"></div><div class="ui-skeleton" style="width:${55 + ((i * 11) % 30)}%;height:11px"></div></div>`).join('')}</div>`;
+  const cap = Number($('#vPop').value);
   try {
-    const res = await fetch(`/api/venue?neighborhood=${encodeURIComponent(hood)}&popMax=${$('#vPop').value}`);
+    const res = await fetch(`/api/venue?neighborhood=${encodeURIComponent(hood)}&popMax=${cap}`);
     const r = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
     if (!res.ok || r.error) throw Object.assign(new Error(r.error || `HTTP ${res.status}`), { status: res.status });
+    drawRoomMap(r.resolvedLocality);
     const mock = S.cfg.qloo.mode !== 'live';
     const c = r.calls?.[0];
-    const popCap = Number($('#vPop').value).toFixed(2);
-    box.innerHTML = r.acts.length
-      ? `<div class="ui-list-section"><div class="ui-list__header"><strong>${t('{n} acts for {hood}', { n: r.acts.length, hood: esc(hood) })}</strong><span>${t('Popularity under {cap}', { cap: dec(popCap) })}</span></div>
-        <div class="ui-table-wrap"><table class="ui-table ui-table--stack acts"><thead><tr><th class="is-num" data-slot="hide-compact">#</th><th>${t('Act')}</th><th>${t('Local fit')}</th><th>${t('Popularity')}</th></tr></thead><tbody>${
-          r.acts.map((a, i) => `<tr><td class="is-num is-muted" data-slot="hide-compact">${i + 1}</td><td data-slot="title"><span class="is-strong">${esc(a.name)}</span>${actDesc(a)}</td><td data-slot="trailing"><div class="meter"><div class="track"><div class="fill" style="width:${pct(a.affinity)}%"></div></div><b>${pct(a.affinity)}</b><span class="only-compact ui-footnote ui-secondary">${t('fit')}</span></div></td><td data-slot="meta"><div class="meter"><span class="only-compact">${t('Popularity')}</span><div class="track"><div class="fill is-pop" style="width:${pct(a.popularity)}%"></div></div><b>${pct(a.popularity)}</b></div></td></tr>`).join('')
-        }</tbody></table></div>
-        <p class="ui-list__footer">${mock ? `${t('Synthetic data.')} ` : ''}${t('Local fit is Qloo affinity for the people around {hood}', { hood: esc(hood) })}${c ? `${LANG === 'fr' ? '\u00a0:' : ':'} <code>GET ${esc(c.path)} · ${esc(Object.entries(c.params).map(([k, v]) => `${k}=${v}`).join(' & '))}</code>` : '.'}</p></div>`
-      : `<div class="ui-empty"><span class="ui-empty__icon">${icon('i-room')}</span><h3>${t('No acts under {cap} popularity here', { cap: dec(popCap) })}</h3><p>${t('Raise the popularity cap, or try a wider area such as the city name.')}</p></div>`;
+    const acts = r.acts.map((a) => ({ ...a }));
+    const pops = acts.map((a) => a.popularity).sort((x, y) => x - y); const medPop = pops[Math.floor(pops.length / 2)] ?? 0;
+    acts.forEach((a, i) => { a.rising = i < Math.ceil(acts.length / 2) && a.popularity <= medPop; });
+    S.venueActs = acts;
+    const rising = acts.filter((a) => a.rising).length;
+    const wide = r.widenedTo ? `<div class="room-wide">${icon('i-info')}<span>${t('Not enough local signal in {hood} yet: these are the acts for {city}.', { hood: esc(hoodParts(hood)[0]), city: esc(r.widenedTo) })}</span></div>` : '';
+    box.innerHTML = acts.length
+      ? `${wide}<div class="room-stats"><div><b>${acts.length}</b><span>${t('acts that fit')}</span></div><div><b>${rising}</b><span>${t('to book early')}</span></div><div><b>${dec(cap.toFixed(2))}</b><span>${t('popularity cap')}</span></div></div>
+        ${fameLadder(acts, cap)}
+        <ol class="act-list">${acts.map((a, i) => `<li class="act${a.rising ? ' is-rising' : ''}" data-act-row="${i}" style="--i:${i}">
+          <span class="act-rank">${i + 1}</span>
+          <div class="act-body"><b class="act-name">${esc(a.name)}</b>${actDesc(a)}
+            <div class="act-meta"><span class="act-pop" aria-hidden="true"><i style="width:${pct(a.popularity)}%"></i></span><span class="act-popn">${t('popularity')} ${pct(a.popularity)}</span>${a.rising ? `<span class="act-tag">${t('Book early')}</span>` : ''}</div></div>
+          <button type="button" class="act-tour" data-plan-act="${i}" aria-label="${t('Plan a tour for {name}', { name: esc(a.name) })}">${icon('i-route')}<span>${t('Plan tour')}</span></button></li>`).join('')}</ol>
+        <p class="room-foot">${mock ? `${t('Synthetic data.')} ` : ''}${t('Order is Qloo’s local taste ranking for {hood}. “Book early”: top half locally and below the median popularity. Room size sets the popularity cap (Club 0.50, Mid-size 0.70, Hall 0.90).', { hood: esc(hood) })}${c ? ` <code>GET ${esc(c.path)} · ${esc(Object.entries(c.params).map(([k, v]) => `${k}=${v}`).join(' & '))}</code>` : ''}</p>`
+      : `<div class="ui-empty"><span class="ui-empty__icon">${icon('i-room')}</span><h3>${t('No acts small enough here')}</h3><p>${t('Pick a bigger room, or try a wider area such as the city name.')}</p></div>`;
+    spring(box, [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { preset: 'quick', fill: 'none' });
   } catch (e) {
     const unknown = e.status === 400;
+    $('#roomHero').hidden = true;
     box.innerHTML = `<div class="ui-banner ui-banner--${unknown ? 'warn' : 'critical'}">${icon('i-alert')}<div style="flex:1"><strong>${unknown ? t('Qloo could not place “{hood}”', { hood: esc(hood) }) : t('Room mode is unavailable right now')}</strong><p>${unknown ? t('Add the city, for example “Wicker Park, Chicago”.') : t('{error}. Try again in a moment.', { error: esc(e.message) })}</p></div></div>`;
   } finally {
-    S.venueBusy = false; $('#venueBtn').disabled = false; $('#venueBtn').textContent = t('Find acts');
+    S.venueBusy = false; $('#venueBtn').disabled = false; $('#venueForm').classList.remove('is-busy');
   }
 }
+function bindRooms() {
+  $('#venueResults').addEventListener('click', (e) => {
+    const go = e.target.closest('[data-plan-act]');
+    if (go) { const a = S.venueActs?.[Number(go.dataset.planAct)]; if (a) run({ artist: a.name, proxies: [], type: 'artist' }); return; }
+    const dot = e.target.closest('[data-act]');
+    if (dot) {
+      const row = $(`#venueResults [data-act-row="${dot.dataset.act}"]`);
+      row?.scrollIntoView({ behavior: reduceMotion() ? 'auto' : 'smooth', block: 'center' });
+      row?.classList.remove('is-flash'); void row?.offsetWidth; row?.classList.add('is-flash');
+    }
+  });
+}
 
-window.Tourbook = { S, UI, briefingText }; // handy for debugging in the console
+window.Tourbook = { S, UI, briefingText, run }; // handy for debugging in the console

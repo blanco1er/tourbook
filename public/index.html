@@ -34,6 +34,10 @@
   <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></symbol>
   <symbol id="i-wave" viewBox="0 0 24 24"><path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 10.5v3"/></symbol>
   <symbol id="i-chev-r" viewBox="0 0 24 24"><path d="m9.5 6 6 6-6 6"/></symbol>
+  <symbol id="i-arrow-r" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-search-s" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 4.5 4.5"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.4"/></symbol>
+  <symbol id="i-route" viewBox="0 0 24 24"><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="6" r="2.2"/><path d="M8 18h7.5a3.5 3.5 0 0 0 0-7h-7a3.5 3.5 0 0 1 0-7H16"/></symbol>
   <symbol id="i-x" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
   <symbol id="i-retry" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4v4h-4"/></symbol>
@@ -112,7 +116,7 @@
             </ul>
             <div class="hero-buttons">
               <button class="ui-button ui-button--prominent ui-button--lg" type="button" id="heroDemo" data-run-demo="0"><svg class="ui-icon is-filled"><use href="#i-play"/></svg><span>Run the demo</span></button>
-              <button class="ui-button ui-button--lg" type="button" data-new-plan>Plan your own act</button>
+              <button class="ui-button ui-button--lg" type="button" data-new-plan><svg class="ui-icon"><use href="#i-plus"/></svg><span>New tour</span></button>
             </div>
             <p class="ui-footnote ui-secondary lead-note">About a minute, no sign-up. Every tool call and Qloo request shows up as it happens.</p>
           </div>
@@ -121,7 +125,9 @@
             <div class="live-head"><span class="live-dot" aria-hidden="true"></span><b>Agent at work</b><span class="live-meta" id="liveMeta"></span></div>
             <ol class="steps" id="steps" aria-label="Agent progress"></ol>
             <p class="step-label" id="stepLabel" aria-hidden="true"></p>
-            <ul class="live-log" id="liveLog" aria-label="Latest agent actions"></ul>
+            <p class="live-now" id="liveNow" aria-live="polite"><span>Connecting to the agent…</span></p>
+            <ol class="lv-stages" id="lvStages" aria-label="What the agent is doing"></ol>
+            <ul class="live-log" id="liveLog" aria-label="Latest agent actions" hidden></ul>
           </div>
 
           <div class="ui-banner ui-banner--critical" id="planError" role="alert" hidden>
@@ -281,27 +287,29 @@
 
       <!-- ===================== ROOM MODE ===================== -->
       <section class="view page" id="view-rooms" data-view="rooms" hidden aria-labelledby="tbTitle">
-        <p class="summary"><strong>Who should play your room?</strong> Type your neighbourhood. Tourbook reads the same taste graph from the venue's side: emerging acts the people around you already love, below a popularity you can afford.</p>
+        <p class="room-lead"><strong>Who should play your room?</strong> Acts the people around you already love, before they blow up.</p>
         <form class="room-form" id="venueForm" autocomplete="off" novalidate>
-          <div class="ui-field room-hood">
-            <label class="ui-field__label" for="vHood">Neighbourhood</label>
-            <input class="ui-input" id="vHood" name="neighborhood" placeholder="Lower East Side" required maxlength="120" enterkeyhint="search" autocapitalize="words" aria-describedby="vHoodErr">
-            <p class="ui-field__error" id="vHoodErr" hidden>Type a neighbourhood, or pick one below.</p>
+          <label class="sr-only" for="vHood">Neighbourhood</label>
+          <div class="room-search">
+            <svg class="ui-icon" aria-hidden="true"><use href="#i-pin"/></svg>
+            <input id="vHood" name="neighborhood" placeholder="Your neighbourhood" required maxlength="120" enterkeyhint="search" autocapitalize="words" aria-describedby="vHoodErr">
+            <button type="submit" id="venueBtn" aria-label="Find acts"><svg class="ui-icon"><use href="#i-arrow-r"/></svg></button>
           </div>
-          <div class="ui-field room-pop">
-            <label class="ui-field__label" for="vPop"><span>Popularity cap <b class="ui-num" id="vPopVal">0.70</b></span><span id="vPopHelp">Lower is more emerging</span></label>
-            <input class="ui-slider" id="vPop" type="range" min="0.2" max="1" step="0.05" value="0.7" aria-describedby="vPopHelp">
-          </div>
-          <button class="ui-button ui-button--prominent ui-button--lg" type="submit" id="venueBtn">Find acts</button>
+          <p class="ui-field__error" id="vHoodErr" hidden>Type a neighbourhood, or pick one below.</p>
+          <fieldset class="room-size" id="vSize">
+            <legend>Your room</legend>
+            <label><input type="radio" name="size" value="0.5"><b>Club</b><small>up to 300</small></label>
+            <label><input type="radio" name="size" value="0.7" checked><b>Mid-size</b><small>300–1,500</small></label>
+            <label><input type="radio" name="size" value="0.9"><b>Hall</b><small>1,500+</small></label>
+          </fieldset>
+          <input type="hidden" id="vPop" value="0.7">
         </form>
-        <div class="hood-chips" id="hoodChips" role="group" aria-label="Suggested neighbourhoods"></div>
-        <div id="venueResults" class="block" aria-live="polite">
-          <div class="ui-empty">
-            <span class="ui-empty__icon"><svg class="ui-icon"><use href="#i-room"/></svg></span>
-            <h3>Pick a neighbourhood</h3>
-            <p>You get twelve acts ranked by local taste fit, with their popularity, so you can book them before they blow up.</p>
-          </div>
+        <div class="hood-grid" id="hoodChips" role="group" aria-label="Suggested neighbourhoods"></div>
+        <div class="room-hero" id="roomHero" hidden>
+          <div class="room-map" id="roomMap" aria-hidden="true"></div>
+          <div class="room-loc"><b id="roomName"></b><span id="roomWhere"></span></div>
         </div>
+        <div id="venueResults" aria-live="polite"></div>
       </section>
     </main>
   </div>
