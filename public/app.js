@@ -1061,8 +1061,9 @@ function heatPaint(opacity) {
     'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 3, 0.75, 6, 1.4, 9, 2.2],
     'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 3, 15, 4, 21, 6, 40, 9, 80],
     'heatmap-color': dark
-      ? ['interpolate', ['linear'], ['heatmap-density'], 0, 'rgba(60,30,15,0)', 0.2, 'rgba(107,58,34,0.45)', 0.45, '#6B3A22', 0.75, '#B23F0C', 1, '#F06A2E']
-      : ['interpolate', ['linear'], ['heatmap-density'], 0, 'rgba(253,230,214,0)', 0.2, 'rgba(247,201,169,0.45)', 0.45, '#F7C9A9', 0.75, '#FF9A62', 1, '#FF8A4C'],
+      // warm-only "hot core" ramp (owner, 30 Oct, after the Snap Map heatmap): pale yellow edge → amber → orange → deep red core
+      ? ['interpolate', ['linear'], ['heatmap-density'], 0, 'rgba(120,53,15,0)', 0.15, 'rgba(180,83,9,0.35)', 0.35, 'rgba(245,158,11,0.6)', 0.6, '#F97316', 0.82, '#EA3A12', 1, '#FF5A36']
+      : ['interpolate', ['linear'], ['heatmap-density'], 0, 'rgba(254,240,138,0)', 0.15, 'rgba(253,224,71,0.38)', 0.4, 'rgba(251,191,36,0.6)', 0.65, '#FB923C', 0.88, '#F26419', 1, '#DC2626'],
     'heatmap-opacity': opacity,
   };
 }
