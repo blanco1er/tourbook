@@ -1176,9 +1176,10 @@ function heatData() {
 function heatPaint(opacity) {
   const dark = isDark();
   return {
-    'heatmap-weight': ['interpolate', ['exponential', 1.8], ['get', 'w'], 0, 0, 1, 1],
+    // one point per metro: the strongest metros must reach the red core on their own (no neighbours to add up)
+    'heatmap-weight': ['interpolate', ['exponential', 1.6], ['get', 'w'], 0, 0, 1, 2.4],
     'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 3, 2.6, 6, 2.2, 9, 2],
-    'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 3, 30, 4, 40, 6, 76, 9, 150],
+    'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 3, 36, 4, 48, 6, 86, 9, 160],
     'heatmap-color': dark
       // full spectrum like the Snap Map heatmap (owner's choice, 30 Oct): cool blue edge → teal → green → yellow → orange → red core
       ? ['interpolate', ['linear'], ['heatmap-density'], 0, 'rgba(56,189,248,0)', 0.1, 'rgba(56,189,248,0.35)', 0.28, 'rgba(45,212,191,0.55)', 0.45, 'rgba(132,204,22,0.7)', 0.6, '#FACC15', 0.75, '#FB923C', 0.88, '#EF4444', 1, '#DC2626']
