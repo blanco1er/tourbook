@@ -208,7 +208,7 @@ app.get('/api/poster/status', wrap(async (req, res) => res.json({ model: await i
 app.post('/api/poster', wrap(async (req, res) => {
   const b = req.body || {};
   const clean = (a, n) => (Array.isArray(a) ? a : []).map((x) => String(x).replace(/[^\p{L}\p{N} &'’.,-]/gu, '').trim().slice(0, 40)).filter(Boolean).slice(0, n);
-  const input = { entityId: String(b.entityId || '').slice(0, 64), kind: ['artist', 'person', 'podcast'].includes(b.kind) ? b.kind : 'artist', genres: clean(b.genres, 5), themes: clean(b.themes, 8), cities: clean(b.cities, 10) };
+  const input = { entityId: String(b.entityId || '').slice(0, 64), name: String(b.name || '').slice(0, 120), description: String(b.description || '').slice(0, 300), kind: ['artist', 'person', 'podcast'].includes(b.kind) ? b.kind : 'artist', genres: clean(b.genres, 5), themes: clean(b.themes, 8), cities: clean(b.cities, 10) };
   if (!input.entityId || !input.cities.length) return res.status(400).json({ error: 'A validated tour is required.' });
   // Caps (a click costs an image): per address and per day for the whole server. A poster already made costs nothing.
   const day = new Date().toISOString().slice(0, 10);
@@ -218,9 +218,9 @@ app.post('/api/poster', wrap(async (req, res) => {
     if ((posters.get(key) || 0) >= POSTERS_PER_IP) throw Object.assign(new Error('Daily poster limit reached for this address.'), { status: 429 });
     if (postersToday.n >= POSTERS_PER_DAY) throw Object.assign(new Error('Daily poster limit reached on this server.'), { status: 429 });
   };
-  const out = await posterArt({ ...input, beforeGenerate: reserve }).catch((e) => { throw e; });
+  const out = await posterArt({ ...input, beforeGenerate: reserve, llm });
   if (!out.cached) { posters.set(key, (posters.get(key) || 0) + 1); postersToday.n++; if (posters.size > 5000) posters.clear(); }
-  res.json({ url: `/api/poster/${out.hash}.png`, cached: out.cached, model: out.model });
+  res.json({ url: `/api/poster/${out.hash}.png`, cached: out.cached, model: out.model, direction: out.direction || null });
 }));
 app.get('/api/poster/:hash.png', (req, res) => {
   const buf = readPoster(req.params.hash);

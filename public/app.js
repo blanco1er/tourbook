@@ -1696,6 +1696,19 @@ function coverDraw(x, img, dx, dy, dw, dh) {
   x.drawImage(img, dx + (dw - w) / 2, dy + (dh - h) / 2, w, h);
 }
 function rrect(x, X, Y, w, h, r) { x.beginPath(); x.moveTo(X + r, Y); x.arcTo(X + w, Y, X + w, Y + h, r); x.arcTo(X + w, Y + h, X, Y + h, r); x.arcTo(X, Y + h, X, Y, r); x.arcTo(X, Y, X + w, Y, r); x.closePath(); }
+// The most vivid colour of the artwork's middle band becomes the poster's accent (numbers, kicker), so type and art match.
+function artAccent(x, W, H) {
+  try {
+    const d = x.getImageData(0, Math.round(H * 0.3), W, Math.round(H * 0.4)).data; let best = null, bestS = 0;
+    for (let i = 0; i < d.length; i += 4 * 97) {
+      const r = d[i], g = d[i + 1], b = d[i + 2]; const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+      const sat = mx ? (mx - mn) / mx : 0; const score = sat * (mx / 255);
+      if (mx > 120 && score > bestS) { bestS = score; best = [r, g, b]; }
+    }
+    if (!best || bestS < 0.25) return null;
+    const k = 255 / Math.max(...best); return `rgb(${best.map((v) => Math.min(255, Math.round(v * Math.min(k, 1.35)))).join(',')})`;
+  } catch { return null; }
+}
 async function drawPoster() {
   const c = $('#posterCanvas'); const W = 1080, H = 1350; const x = c.getContext('2d');
   const font = getComputedStyle(document.documentElement).getPropertyValue('--font-display') || 'system-ui';
@@ -1703,7 +1716,8 @@ async function drawPoster() {
   x.clearRect(0, 0, W, H);
   // background: the AI artwork, or a warm dark field until it is made
   let art = null; if (S.posterArt) { try { art = await loadImg(S.posterArt); } catch { art = null; } }
-  if (art) coverDraw(x, art, 0, 0, W, H);
+  let accent = '#FF8A4C';
+  if (art) { coverDraw(x, art, 0, 0, W, H); accent = artAccent(x, W, H) || accent; }
   else {
     const g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#1A1411'); g.addColorStop(1, '#0B0908'); x.fillStyle = g; x.fillRect(0, 0, W, H);
     const r = x.createRadialGradient(W * 0.78, H * 0.22, 0, W * 0.78, H * 0.22, W * 0.9); r.addColorStop(0, 'rgba(226,86,31,.55)'); r.addColorStop(0.55, 'rgba(226,86,31,.12)'); r.addColorStop(1, 'rgba(226,86,31,0)'); x.fillStyle = r; x.fillRect(0, 0, W, H);
@@ -1726,7 +1740,7 @@ async function drawPoster() {
   const px = (s) => [box.x + box.w / 2 + (s.lng - (x0 + x1) / 2) * k, box.y + box.h / 2 - (s.lat - (y0 + y1) / 2) * k * 1.25];
   x.lineWidth = 4; x.strokeStyle = 'rgba(255,255,255,.75)'; x.lineJoin = 'round'; x.beginPath();
   stops.forEach((s, i) => { const [X, Y] = px(s); if (i) x.lineTo(X, Y); else x.moveTo(X, Y); }); x.stroke();
-  stops.forEach((s, i) => { const [X, Y] = px(s); x.beginPath(); x.arc(X, Y, i === 0 ? 13 : 9, 0, Math.PI * 2); x.fillStyle = s.hidden ? '#FF8A4C' : '#FFFFFF'; x.fill(); x.lineWidth = 3; x.strokeStyle = 'rgba(0,0,0,.45)'; x.stroke(); });
+  stops.forEach((s, i) => { const [X, Y] = px(s); x.beginPath(); x.arc(X, Y, i === 0 ? 13 : 9, 0, Math.PI * 2); x.fillStyle = s.hidden ? accent : '#FFFFFF'; x.fill(); x.lineWidth = 3; x.strokeStyle = 'rgba(0,0,0,.45)'; x.stroke(); });
   // kicker and name
   x.fillStyle = '#FF8A4C'; x.font = `700 30px ${font}`; x.textBaseline = 'alphabetic';
   if ('letterSpacing' in x) x.letterSpacing = '6px';
@@ -1734,7 +1748,7 @@ async function drawPoster() {
   const words = name.split(' '); let lines = [name];
   while (x.measureText(name).width > W - 144 && size > 96) { size -= 4; x.font = `800 ${size}px ${font}`; }
   if (x.measureText(name).width > W - 144) { const mid = Math.ceil(words.length / 2); lines = [words.slice(0, mid).join(' '), words.slice(mid).join(' ')]; }
-  x.font = `700 30px ${font}`; x.fillStyle = '#FF8A4C';
+  x.font = `700 30px ${font}`; x.fillStyle = accent;
   x.fillText(t('THE TASTE TOUR').toUpperCase(), 72, 600 - size * 0.78 - 26); // above the cap height of the name, never touching it
   if ('letterSpacing' in x) x.letterSpacing = '0px';
   x.font = `800 ${size}px ${font}`; x.fillStyle = '#FFFFFF'; lines.forEach((l, i) => x.fillText(l, 68, 600 + i * size * 0.95));
@@ -1743,7 +1757,7 @@ async function drawPoster() {
   const per = two ? Math.ceil(stops.length / 2) : stops.length; const rowH = Math.min(104, (H - 170 - yStart) / per);
   stops.forEach((s, i) => {
     const col = two && i >= per ? 1 : 0; const X = 72 + col * 488; const Y = yStart + (i - col * per) * rowH;
-    x.fillStyle = '#FF8A4C'; x.font = `700 28px ${font}`; x.fillText(String(i + 1).padStart(2, '0'), X, Y);
+    x.fillStyle = accent; x.font = `700 28px ${font}`; x.fillText(String(i + 1).padStart(2, '0'), X, Y);
     x.fillStyle = '#FFFFFF'; x.font = `600 40px ${font}`; x.fillText(s.name, X + 58, Y);
     const w = x.measureText(s.name).width; x.fillStyle = 'rgba(255,255,255,.55)'; x.font = `500 26px ${font}`; x.fillText(s.state || '', X + 58 + w + 14, Y);
   });
@@ -1751,7 +1765,7 @@ async function drawPoster() {
   x.fillStyle = 'rgba(255,255,255,.6)'; x.font = `500 24px ${font}`;
   x.fillText(t('Routed by taste with Qloo'), 72, H - 64);
   const hid = stops.filter((s) => s.hidden).length;
-  if (hid) { const txt = t('{n} hidden markets', { n: hid }); const w = x.measureText(txt).width; x.beginPath(); x.arc(W - 72 - w - 22, H - 72, 9, 0, Math.PI * 2); x.fillStyle = '#FF8A4C'; x.fill(); x.fillStyle = 'rgba(255,255,255,.6)'; x.fillText(txt, W - 72 - w, H - 64); }
+  if (hid) { const txt = t('{n} hidden markets', { n: hid }); const w = x.measureText(txt).width; x.beginPath(); x.arc(W - 72 - w - 22, H - 72, 9, 0, Math.PI * 2); x.fillStyle = accent; x.fill(); x.fillStyle = 'rgba(255,255,255,.6)'; x.fillText(txt, W - 72 - w, H - 64); }
 }
 async function makePosterArt() {
   const b = S.book; if (!b || S.posterBusy) return;
@@ -1759,7 +1773,7 @@ async function makePosterArt() {
   $('#posterBusy').hidden = false; $('#posterBusyText').textContent = t('The AI is painting {name}’s world… about 15 s', { name: b.artist.selected.name });
   const themes = [...new Set((b.dates || []).flatMap((d) => (d.crowd_brief?.themes || []).map((x) => x.name)))].slice(0, 8);
   try {
-    const r = await fetch('/api/poster', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ entityId: b.artist.selected.id, kind: S.input?.type || 'artist', genres: S.act?.genres || [], themes, cities: tourStops().map((s) => s.name) }) });
+    const r = await fetch('/api/poster', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ entityId: b.artist.selected.id, name: b.artist.selected.name, description: b.artist.selected.description || '', kind: S.input?.type || 'artist', genres: S.act?.genres || [], themes, cities: tourStops().map((s) => s.name) }) });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw Object.assign(new Error(j.error || `HTTP ${r.status}`), { code: j.code });
     S.posterArt = j.url; btn.hidden = true;
