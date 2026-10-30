@@ -44,6 +44,7 @@
     'national heatmap call': 'appel heatmap national',
     'rejected parameters': 'paramètre rejeté',
     'New tour': 'Nouvelle tournée',
+    'Reconnecting to the agent…': 'Reconnexion à l’agent…',
     'My tours': 'Mes tournées',
     'Save this tour': 'Enregistrer la tournée',
     'Save the tour': 'Enregistrer la tournée',

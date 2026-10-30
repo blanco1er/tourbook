@@ -240,7 +240,14 @@ function setBusy(on, demoIndex) {
   $('#heroDemo span').textContent = on ? t('Agent working…') : heroLabel();
 }
 
-function run(input, { rid, keepView = false, demoIndex } = {}) {
+function resumeRun() {
+  if (!S.input || !S.rid || S.book) return;
+  const rid = S.rid; S.running = false; S.es = null;
+  run(S.input, { rid, keepView: true, resume: true });
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden && S.resumeOnShow) { S.resumeOnShow = false; resumeRun(); } });
+function run(input, { rid, keepView = false, demoIndex, resume = false } = {}) {
+  const opts = { resume }; if (!resume) S.reconnects = 0;
   // UB-31: one plan per click. The lock below stops a second click; the request id makes the server
   // join the run already in flight if a duplicate request still gets through.
   if (S.running) { toast({ title: t('Already planning'), detail: t('{artist} is still running. One plan at a time.', { artist: S.input?.artist }) }); return; }
@@ -326,6 +333,12 @@ function run(input, { rid, keepView = false, demoIndex } = {}) {
   es.onerror = () => {
     if (S.es !== es || !S.running) return;
     es.close();
+    // iPhone pauses a page in the background and drops its stream, while the plan keeps running on the server.
+    // Pick the same run up again (same request id: the server replays it, never a second run), silently.
+    if (gotEvent || opts.resume) {
+      if (document.hidden) { S.resumeOnShow = true; return; }
+      if ((S.reconnects || 0) < 3) { S.reconnects = (S.reconnects || 0) + 1; setNow(t('Reconnecting to the agent…')); setTimeout(resumeRun, 900 * S.reconnects); return; }
+    }
     S.retryRid = gotEvent ? S.rid : null; // reconnect to the same run: the server replays it, it never starts a second one
     failRun(gotEvent ? t('The connection dropped') : t('The agent could not start'), gotEvent ? t('The plan keeps running on the server. Try again to pick it up where it is.') : t('The server may be restarting. Try again in a moment.'), { keepPending: true });
   };
@@ -354,7 +367,7 @@ const SESSION_KEY = 'tourbook:last';
 const PENDING_KEY = 'tourbook:pending';
 const clearPending = () => { try { sessionStorage.removeItem(PENDING_KEY); } catch {} };
 function pendingRid() {
-  try { const p = JSON.parse(sessionStorage.getItem(PENDING_KEY) || 'null'); return p && p.params === location.search.slice(1) && Date.now() - p.t < 120000 ? p.rid : undefined; } catch { return undefined; }
+  try { const p = JSON.parse(sessionStorage.getItem(PENDING_KEY) || 'null'); return p && p.params === location.search.slice(1) && Date.now() - p.t < 600000 ? p.rid : undefined; } catch { return undefined; }
 }
 function saveSession() {
   try { sessionStorage.setItem(SESSION_KEY, JSON.stringify({ params: shareParams(), lang: LANG, input: S.input, book: S.book, trace: S.trace })); } catch { /* private mode or quota: reload simply re-runs */ }
