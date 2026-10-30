@@ -62,7 +62,7 @@ async function artDirection(llm, { name, kind, genres, description, themes }) {
     const r = await llm.chat({
       json: true,
       messages: [
-        { role: 'system', content: 'You are the art director of a premium concert-poster studio. Return JSON only: {"style": string, "palette": string, "motifs": string, "mood": string, "layout": string, "typography": string, "photo_treatment": string}. Design a complete tour poster for this act. layout: an original composition (not "photo top-left, title, list"); typography: a typeface style, case, weight and alignment that fit the act; photo_treatment: how the supplied real photograph of the act is placed and treated (e.g. full-bleed duotone, die-cut cut-out, tilted print, halftone, framed in a motif) WITHOUT redrawing or changing the face. No people other than in the supplied photo. Make it specific to this act; choose the palette from the act itself, not orange by default.' },
+        { role: 'system', content: 'You are the creative director of a top contemporary design studio (the level of A24 key art, Apple Music editorial artwork, modern festival campaigns, Swiss / international typographic style). Return JSON only: {"style": string, "palette": string, "motifs": string, "mood": string, "layout": string, "typography": string, "photo_treatment": string}. Design a modern, premium, high-end tour poster for this act: bold contemporary typography (grotesk, neo-grotesk, condensed or refined serif display), a strong grid, generous negative space, confident colour, real photographic power. Pick ONE of these modern approaches, whichever fits the act best, and make it specific: (a) full-bleed photo with a duotone or gradient-map treatment and oversized type; (b) giant headline with the act standing in front of it (type behind the subject); (c) the act cut out on a single bold colour field with sharp editorial type; (d) magazine-cover editorial layout; (e) mostly typographic poster with a narrow photo strip; (f) high-contrast black-and-white photo with one accent colour and grain. FORBIDDEN: ornaments, baroque, filigree, crowns, laurels, arches, frames, ovals, medallions, watercolour washes, smudges, clip-art, fantasy, vintage pastiche, kitsch. photo_treatment must keep the supplied real photograph of the act and never redraw or change the face; no other people. Choose the palette from the act itself, not orange by default.' },
         { role: 'user', content: JSON.stringify({ act: name, kind, genres, about: description, audience_tastes: themes.slice(0, 8), suggested_style: base.style }) },
       ],
     });
@@ -88,7 +88,8 @@ export function posterPrompt(dir) {
 // The exact text is given word for word and checked afterwards; the real photo is passed in and must not be redrawn.
 function fullPosterPrompt(dir, { name, lines, footer, hasPhoto }) {
   return [
-    'Design a complete, print-ready concert tour poster, portrait 4:5, at the level of a top music-poster studio. Be bold and original: no template, every decision (composition, type, photo placement) serves this specific act.',
+    'Design a complete, print-ready concert tour poster, portrait 4:5. It must look modern, premium and high-end, like the work of a top contemporary design studio: bold contemporary typography, strong grid, generous negative space, confident colour, crisp print finish. No template: every decision serves this specific act.',
+    'Never use ornaments, baroque details, crowns, laurels, arches, frames, ovals, medallions, watercolour washes, clip-art or vintage pastiche.',
     `Art style: ${dir.style}. Palette: ${dir.palette}.`,
     dir.motifs ? `Motifs: ${dir.motifs}.` : '', dir.mood ? `Mood: ${dir.mood}.` : '',
     dir.layout ? `Layout: ${dir.layout}.` : 'Layout: an original, bold composition specific to this act.',
@@ -119,7 +120,7 @@ export const posterFile = (hash) => (/^[a-f0-9]{20}$/.test(hash) ? resolve(CACHE
 
 /** Returns { hash, cached, model } once the art exists on disk. Throws with a status when it cannot be made. */
 export async function posterArt({ entityId, name, description, kind, genres, themes, cities, stops = [], photo, lang = 'en', beforeGenerate, llm }) {
-  const hash = hashOf({ v: 3, entityId, kind, genres, themes, cities, stops, lang }); // one poster per act, tour and language
+  const hash = hashOf({ v: 4, entityId, kind, genres, themes, cities, stops, lang }); // one poster per act, tour and language
   const file = posterFile(hash);
   if (existsSync(file)) return { hash, cached: true, model: null, full: true };
   const key = imageKey(); const model = await imageModel();
