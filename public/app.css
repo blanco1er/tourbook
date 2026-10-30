@@ -1167,3 +1167,11 @@ button.live-head { width: 100%; padding: 0; border: 0; background: none; text-al
 :root { --accent: var(--ok-strong); }
 .ui-root .ui-button--prominent, .ui-root .ask-send, .ui-root .room-search button, .ui-root #askApply { background: var(--ok-strong) !important; color: #fff !important; }
 .ui-root .ui-button--prominent { box-shadow: 0 6px 18px light-dark(rgba(14,138,62,.26), rgba(0,0,0,.4)); }
+/* Room mode: "book early" is a positive recommendation, so green; the other acts are neutral (owner, 30 Oct) */
+.ui-root .fd { border-color: var(--label-tertiary); color: var(--label-secondary); }
+.ui-root .fd.is-rising { background: var(--ok); border-color: var(--ok); color: #fff; }
+.ui-root .fame-key i { border-color: var(--label-tertiary); }
+.ui-root .fame-key i.is-rising { background: var(--ok); border-color: var(--ok); }
+.ui-root .act-tag::before { background: var(--ok); }
+.ui-root .fame-band { border-right-color: var(--label-tertiary); }
+.ui-root .room-search { box-shadow: inset 0 0 0 0.5px var(--label-tertiary); } .ui-root .room-search:focus-within { box-shadow: inset 0 0 0 1.5px var(--label-secondary); }
