@@ -39,8 +39,11 @@ export const ASK_TOOLS = [
 const SYSTEM = (lang) => `You are Tourbook's routing agent. The user has a finished tour plan and asks for a change in plain words.
 Tools: find_markets (this plan's own Qloo taste scores, free), check_rooms (one live Qloo request per city), propose_change (ends the turn).
 Rules: work in at most ${MAX_ROUNDS} rounds; check the rooms of any city you add; propose at most one change; never invent a number:
-quote only Hidden Market Scores, ranks, rooms and distances that the tools returned. If the request cannot be met with a better city,
-say so with propose_change and empty lists. A tour keeps ${MIN_STOPS} to ${MAX_STOPS} stops. The weakest stop is the one with the lowest Hidden Market Score.
+quote only Hidden Market Scores, ranks, rooms and distances that the tools returned. A tour keeps ${MIN_STOPS} to ${MAX_STOPS} stops.
+The weakest stop is the one with the lowest Hidden Market Score.
+When the user names a region or a place, honour it: swap the weakest stop that is NOT already in that region for the best candidate there
+(found with find_markets, rooms checked), even if it scores lower, and state the cost in points in the reason. Only when the user asks for a
+stronger tour without naming a place, and no candidate beats the weakest stop, answer that the tour holds (propose_change with empty lists).
 ${lang === 'fr' ? 'Write the reason in French.' : 'Write the reason in English.'}`;
 
 /** Resolves "Denver", "denver", "salt-lake-city"… to a metro id, or null. */
