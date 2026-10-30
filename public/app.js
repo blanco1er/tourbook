@@ -21,6 +21,7 @@ const TYPE_LABEL = { artist: 'Music', person: 'Comedy', podcast: 'Live podcast' 
 const TYPE_ICON = { artist: 'i-note', person: 'i-mic', podcast: 'i-wave' };
 const icon = (id, cls = '') => `<svg class="ui-icon ${cls}"><use href="#${id}"/></svg>`;
 const newRid = () => (crypto.randomUUID ? crypto.randomUUID() : `r${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`);
+const SAVED_KEY = 'tourbook:saved', ROOMS_KEY = 'tourbook:rooms'; // device history (History tab)
 const VIEW_META = {
   plan: { title: 'Tour plan', sub: 'Route a tour by taste, not population' },
   agent: { title: 'Agent', sub: 'No run yet' },
@@ -88,7 +89,9 @@ function bindUi() {
     const del = e.target.closest('[data-unsave]'); if (del) { unsaveTour(del.dataset.unsave); return; }
     const o = e.target.closest('[data-saved]'); if (o) openSaved(o.dataset.saved);
   });
-  renderSaved(); renderRooms();
+  // after the whole module has run: SAVED_KEY / ROOMS_KEY are declared further down, and reading them earlier
+  // threw inside readSaved's try/catch, so History showed empty on every fresh start (owner, 30 Oct)
+  setTimeout(() => { renderSaved(); renderRooms(); updateSaveBtn(); }, 0);
   $('#histTabs').addEventListener('click', (e) => { const b = e.target.closest('[role="tab"]'); if (b) setHistTab(b.dataset.hist); });
   $('#roomsHist').addEventListener('click', (e) => {
     const del = e.target.closest('[data-room-del]'); if (del) { const l = readRooms(); l.splice(Number(del.dataset.roomDel), 1); try { localStorage.setItem(ROOMS_KEY, JSON.stringify(l)); } catch {} renderRooms(); return; }
@@ -385,7 +388,6 @@ function saveSession() {
 /** Same URL reloaded in this tab: show the finished plan at once instead of spending Qloo calls again. */
 // ---------------- my tours (owner, 30 Oct: a tour was lost on the way back home) ----------------
 // Saved on this device only (no account): the finished plan, its agent log and its poster, reopened without a new run.
-const SAVED_KEY = 'tourbook:saved';
 const savedId = (b = S.book) => (b ? `${b.artist?.selected?.id || b.artist?.selected?.name}|${b.createdAt}` : '');
 function readSaved() { try { return JSON.parse(localStorage.getItem(SAVED_KEY) || '[]'); } catch { return []; } }
 function writeSaved(list) {
@@ -418,7 +420,6 @@ function renderSaved() {
   $('#savedList').innerHTML = list.map((x) => `<li><div class="saved-row"><button type="button" class="saved-open" data-saved="${esc(x.id)}">${x.photo ? `<img src="/api/photo/${x.photo}" alt="" loading="lazy">` : `<span class="saved-ph">${icon('i-map')}</span>`}<span class="saved-txt"><b>${esc(x.name)}</b><small>${esc([t('{n} stops', { n: x.stops }), x.lead, new Date(x.savedAt).toLocaleDateString(LOCALE, { day: 'numeric', month: 'short' })].filter(Boolean).join(' · '))}</small></span></button><button type="button" class="saved-del" data-unsave="${esc(x.id)}" aria-label="${esc(t('Remove {name} from my tours', { name: x.name }))}">${icon('i-x')}</button></div></li>`).join('');
 }
 // Room searches history (owner, 30 Oct): the last neighbourhoods searched, reopened in one tap.
-const ROOMS_KEY = 'tourbook:rooms';
 function readRooms() { try { return JSON.parse(localStorage.getItem(ROOMS_KEY) || '[]'); } catch { return []; } }
 function logRoom(e) { const list = [e, ...readRooms().filter((x) => !(x.hood === e.hood && x.cap === e.cap))].slice(0, 15); try { localStorage.setItem(ROOMS_KEY, JSON.stringify(list)); } catch { /* storage full */ } renderRooms(); }
 function renderRooms() {
