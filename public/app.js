@@ -1887,7 +1887,14 @@ async function drawPoster() {
   const stops = tourStops(); const name = S.book.artist.selected.name;
   x.clearRect(0, 0, W, H);
   // background: the AI artwork, or a warm dark field until it is made
-  let art = null; if (S.posterArt) { try { art = await loadImg(S.posterArt); } catch { art = null; } }
+  let art = null;
+  if (S.posterArt) {
+    try { art = await loadImg(S.posterArt); }
+    catch { // the server lost the image (its disk is wiped on each deploy): offer to make it again, never a stale fallback
+      art = null; S.posterArt = null; S.posterFull = false; S.posterBand = false;
+      $('#posterArtBtn').hidden = false; if (isSaved()) saveTour({ quiet: true });
+    }
+  }
   if (art && S.posterFull) { // the model designed the poster; the app sets the date block in its reserved bottom area
     coverDraw(x, art, 0, 0, W, H);
     if (S.posterBand) drawDateBlock(x, W, H, stops, font, artAccent(x, W, H));
